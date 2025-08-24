@@ -7437,7 +7437,8 @@ int nl80211_set_amsdu_tid(wifi_interface_info_t *interface, uint8_t *amsdu_tid)
 
     struct nl_msg *msg;
     struct nlattr *nlattr_vendor = NULL;
-
+    //struct nlattr *nlattr_amsdu = NULL;
+    
     // Create the vendor-specific command message
     msg = nl80211_drv_vendor_cmd_msg(g_wifi_hal.nl80211_id, interface, 0, OUI_COMCAST,
         RDK_VENDOR_NL80211_SUBCMD_SET_AMSDU_CONFIG);
@@ -7454,21 +7455,31 @@ int nl80211_set_amsdu_tid(wifi_interface_info_t *interface, uint8_t *amsdu_tid)
 
     nlattr_vendor = nla_nest_start(msg, NL80211_ATTR_VENDOR_DATA);
 
+    wifi_hal_dbg_print("%s:%d: AMSD ATTR TYPE NUM: %d\n", __func__, __LINE__, RDK_VENDOR_ATTR_AMSDU_TIDS);
+    wifi_hal_dbg_print("%s:%d: AMSD ATTR TYPE LEN: %d\n", __func__, __LINE__, RDK_VENDOR_NL80211_AMSDU_TID_MAX);
+
     if (nla_put_u32(msg, RDK_VENDOR_ATTR_VAP_INDEX, 0) < 0) {
         wifi_hal_stats_error_print("%s:%d: Failed to set vap index\n", __func__, __LINE__);
         nlmsg_free(msg);
         return RETURN_ERR;
     }
 
+    //nlattr_amsdu = nla_nest_start(msg, RDK_VENDOR_ATTR_AMSDU_TIDS);
+    /*if (nlattr_amsdu == NULL) {
+        wifi_hal_dbg_print("%s:%d: Failed to create AMSDU payload\n", __func__, __LINE__);
+        nlmsg_free(msg);
+        return RETURN_ERR;
+    }*/
 
-    wifi_hal_dbg_print("%s:%d: AMSD ATTR TYPE NUM: %d\n", __func__, __LINE__, RDK_VENDOR_ATTR_AMSDU_TIDS);
-    wifi_hal_dbg_print("%s:%d: AMSD ATTR TYPE LEN: %d\n", __func__, __LINE__, RDK_VENDOR_NL80211_AMSDU_TID_MAX);
     if (nla_put(msg, RDK_VENDOR_ATTR_AMSDU_TIDS, RDK_VENDOR_NL80211_AMSDU_TID_MAX, amsdu_tid) < 0) {
         wifi_hal_dbg_print("%s:%d: Failed to add AMSDU TIDs config\n", __func__, __LINE__);
+        //nla_nest_cancel(msg, nlattr_amsdu);
+        nla_nest_cancel(msg, nlattr_vendor);
         nlmsg_free(msg);
         return RETURN_ERR;
     }
 
+    //nla_nest_end(msg, nlattr_amsdu);
     nla_nest_end(msg, nlattr_vendor);
 
     if (nl80211_send_and_recv(msg, NULL, &g_wifi_hal, NULL, NULL) != 0) {
