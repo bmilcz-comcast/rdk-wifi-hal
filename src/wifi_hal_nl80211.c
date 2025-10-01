@@ -9701,10 +9701,13 @@ static inline wifi_security_modes_t add_wpa3(wifi_security_modes_t mode)
 {
     switch (mode) {
         case wifi_security_mode_wpa3_transition:
+            wifi_hal_stats_dbg_print("%s:%d: [DEBUG] Mode is wifi_security_mode_wpa3_transition: \n", __func__, __LINE__);
             return wifi_security_mode_wpa3_transition;
         case wifi_security_mode_wpa3_enterprise:
+            wifi_hal_stats_dbg_print("%s:%d: [DEBUG] Mode is wifi_security_mode_wpa3_enterprise:\n", __func__, __LINE__);
             return wifi_security_mode_wpa3_enterprise;
         default:
+            wifi_hal_stats_dbg_print("%s:%d: [DEBUG] Mode is wifi_security_mode_wpa3_personal\n", __func__, __LINE__);
             return wifi_security_mode_wpa3_personal;
     }
 }
@@ -9743,6 +9746,7 @@ static inline wifi_security_modes_t add_enterprise(wifi_security_modes_t mode)
 static void parse_rsn(const uint8_t type, uint8_t len, const uint8_t *data,
             const struct parse_ies_data *ie_buffer, wifi_bss_info_t *bss)
 {
+    wifi_hal_stats_dbg_print("%s:%d: [DEBUG] Entering parse_rsn\n", __func__, __LINE__);
     uint16_t suite_count = 0;
     uint i;
     bool multiple_suite_count = false;
@@ -9860,6 +9864,7 @@ static void parse_rsn(const uint8_t type, uint8_t len, const uint8_t *data,
             switch (suite_type) {
                 case RSN_AUTH_KEY_MGMT_PSK_OVER_802_1X:
                     if (multiple_suite_count == true) {
+                        wifi_hal_stats_dbg_print("%s:%d: [DEBUG] Mode is wifi_security_mode_wpa3_transition, AKM suite is RSN_AUTH_KEY_MGMT_PSK_OVER_802_1X \n", __func__, __LINE__);
                         bss->sec_mode = wifi_security_mode_wpa3_transition;
                     } else {
                         bss->sec_mode = add_wpa_akm(bss->sec_mode);
@@ -9867,6 +9872,7 @@ static void parse_rsn(const uint8_t type, uint8_t len, const uint8_t *data,
                     break;
                 case RSN_AUTH_KEY_MGMT_SAE:
                     if (multiple_suite_count == true) {
+                        wifi_hal_stats_dbg_print("%s:%d: [DEBUG] Mode is wifi_security_mode_wpa3_transition, AKM suite is RSN_AUTH_KEY_MGMT_SAE \n", __func__, __LINE__);
                         bss->sec_mode = wifi_security_mode_wpa3_transition;
                     } else {
                         bss->sec_mode = add_wpa3(bss->sec_mode);
@@ -10310,6 +10316,7 @@ static void parse_vendor(unsigned char len, unsigned char *data)
 
 static void parse_ies(unsigned char *ie, int ielen, wifi_bss_info_t *bss)
 {
+    wifi_hal_stats_dbg_print("%s:%d: [DEBUG] Entering parse_ies\n", __func__, __LINE__);
     struct parse_ies_data ie_buffer = {
         .ie = ie,
         .ielen = ielen };
@@ -10394,10 +10401,13 @@ static int scan_info_handler(struct nl_msg *msg, void *arg)
         return NL_SKIP;
     }
 
+    wifi_hal_stats_dbg_print("%s:%d: [DEBUG] scan_info_handler for %s\n", __func__, __LINE__, bssid_str);
+
     if (bss[NL80211_BSS_INFORMATION_ELEMENTS]) {
         ie = nla_data(bss[NL80211_BSS_INFORMATION_ELEMENTS]);
         len = nla_len(bss[NL80211_BSS_INFORMATION_ELEMENTS]);
         //wifi_hal_stats_dbg_print("[SCAN] BSSID: %s, IE LEN %d\n", bssid_str, len);
+        wifi_hal_stats_dbg_print("%s:%d: [DEBUG] Information element found\n", __func__, __LINE__);
         if (len > 512) {
             wifi_hal_stats_error_print("[Wrong NL SCAN output] BSSID: %s, IE LEN %d\n", bssid_str, len);
             return NL_SKIP;
@@ -10494,10 +10504,12 @@ static int scan_info_handler(struct nl_msg *msg, void *arg)
 
     if (ie) {
         // Parse standard IEs including SSID
-        parse_ies(ie, len, scan_info_ap);
+      wifi_hal_stats_dbg_print("%s:%d: [DEBUG] Entering parse_ies\n", __func__, __LINE__);
+      parse_ies(ie, len, scan_info_ap);
     } else {
         // Parse IEs from beacon IEs (including SSID)
-        parse_ies(beacon_ies, beacon_ie_len, scan_info_ap);
+      wifi_hal_stats_dbg_print("%s:%d: [DEBUG] Entering parse_ies beacon\n", __func__, __LINE__);
+      parse_ies(beacon_ies, beacon_ie_len, scan_info_ap);
     }
 
     if (ie != NULL && len > 0) {
