@@ -5278,7 +5278,7 @@ static void wiphy_info_extended_capab(wifi_driver_data_t *drv,
         capa = &drv->iface_ext_capa[drv->num_iface_ext_capa];
         capa->iftype = nla_get_u32(tb1[NL80211_ATTR_IFTYPE]);
         wifi_hal_dbg_print(
-            "%s:%d: nl80211: Driver-advertised extended capabilities for interface type %s",
+            "%s:%d: nl80211: Driver-advertised extended capabilities for interface type %s\n",
             __func__, __LINE__, nl80211_iftype_str(capa->iftype));
 
         len = nla_len(tb1[NL80211_ATTR_EXT_CAPA]);
@@ -5309,7 +5309,7 @@ static void wiphy_info_extended_capab(wifi_driver_data_t *drv,
                 nla_get_u16(tb1[NL80211_ATTR_MLD_CAPA_AND_OPS]);
         }
 
-        wifi_hal_dbg_print("%s:%d: nl80211: EML Capability: 0x%x MLD Capability: 0x%x", __func__,
+        wifi_hal_dbg_print("%s:%d: nl80211: EML Capability: 0x%x MLD Capability: 0x%x\n", __func__,
             __LINE__, capa->eml_capa, capa->mld_capa_and_ops);
 #endif /* CONFIG_IEEE80211BE */
 #endif /* HOSTAPD_VERSION >= 211 */
@@ -5553,7 +5553,7 @@ static int wiphy_dump_handler(struct nl_msg *msg, void *arg)
 #endif //FEATURE_SINGLE_PHY
 
 #if defined(VNTXER5_PORT) || defined(TARGET_GEMINI7_2) || defined(TCXB7_PORT) || defined(TCXB8_PORT) || defined(XB10_PORT) || \
-    defined(SCXER10_PORT) || defined(SCXF10_PORT)
+    defined(SCXER10_PORT) || defined(SCXF10_PORT) || defined(_PLATFORM_BANANAPI_R4_)
     int existing_radio_found = 0;
 #endif
 #ifdef CONFIG_WIFI_EMULATOR
@@ -5562,7 +5562,8 @@ static int wiphy_dump_handler(struct nl_msg *msg, void *arg)
 #ifndef FEATURE_SINGLE_PHY
     if (g_wifi_hal.num_radios > MAX_NUM_RADIOS) {
 #else //FEATURE_SINGLE_PHY
-    if (g_wifi_hal.num_radios >= MAX_NUM_RADIOS) {
+			//BRAYAN: Replace with > but make sure we do not exceed this
+    if (g_wifi_hal.num_radios > MAX_NUM_RADIOS) {
 #endif //FEATURE_SINGLE_PHY
 #endif //CONFIG_WIFI_EMULATOR
         wifi_hal_dbg_print("%s:%d: Returning num radios:%d exceeds MAX:%d\n",
@@ -5575,7 +5576,7 @@ static int wiphy_dump_handler(struct nl_msg *msg, void *arg)
     nla_parse(tb, NL80211_ATTR_MAX, genlmsg_attrdata(gnlh, 0), genlmsg_attrlen(gnlh, 0), NULL);
 
 #if !defined(VNTXER5_PORT) && !defined(TARGET_GEMINI7_2) && !defined(TCXB7_PORT) && !defined(TCXB8_PORT) && \
-    !defined(XB10_PORT) && !defined(SCXER10_PORT) && !defined(SCXF10_PORT)
+    !defined(XB10_PORT) && !defined(SCXER10_PORT) && !defined(SCXF10_PORT) && !defined(_PLATFORM_BANANAPI_R4_)
     for (unsigned int j = 0; j < g_wifi_hal.num_radios; j++)
     {
         if (strcmp(g_wifi_hal.radio_info[j].name, nla_get_string(tb[NL80211_ATTR_WIPHY_NAME])) == 0) {
@@ -5627,7 +5628,8 @@ static int wiphy_dump_handler(struct nl_msg *msg, void *arg)
     for (unsigned int j=0; (j < num_radios_mapped && g_wifi_hal.num_radios < MAX_NUM_RADIOS); j++) {
 #endif //FEATURE_SINGLE_PHY
 #if !defined(VNTXER5_PORT) && !defined(TARGET_GEMINI7_2) && !defined(TCXB7_PORT) && !defined(TCXB8_PORT) && \
-    !defined(XB10_PORT) && !defined(SCXER10_PORT) && !defined(SCXF10_PORT)
+    !defined(XB10_PORT) && !defined(SCXER10_PORT) && !defined(SCXF10_PORT) && !defined(_PLATFORM_BANANAPI_R4_)
+
     radio = &g_wifi_hal.radio_info[g_wifi_hal.num_radios];
     memset((unsigned char *)radio, 0, sizeof(wifi_radio_info_t));
 #else
@@ -5661,6 +5663,8 @@ static int wiphy_dump_handler(struct nl_msg *msg, void *arg)
     if (tb[NL80211_ATTR_WIPHY_NAME]) {
         strcpy(radio->name, nla_get_string(tb[NL80211_ATTR_WIPHY_NAME]));
     }
+
+
 #if defined(CONFIG_HW_CAPABILITIES) || defined(VNTXER5_PORT) || defined(TARGET_GEMINI7_2)
     capa = &radio->driver_data.capa;
 
@@ -5941,7 +5945,8 @@ static int wiphy_dump_handler(struct nl_msg *msg, void *arg)
     }
 
 #if !defined(VNTXER5_PORT) && !defined(TARGET_GEMINI7_2) && !defined(TCXB7_PORT) && !defined(TCXB8_PORT) && \
-    !defined(XB10_PORT) && !defined(SCXER10_PORT) && !defined(SCXF10_PORT)
+    !defined(XB10_PORT) && !defined(SCXER10_PORT) && !defined(SCXF10_PORT) && !defined(_PLATFORM_BANANAPI_R4_)
+
     g_wifi_hal.num_radios++;
 #endif
 #ifdef FEATURE_SINGLE_PHY
@@ -6607,7 +6612,7 @@ int update_channel_flags()
 }
 
 #if defined(VNTXER5_PORT) || defined(TARGET_GEMINI7_2) || defined(TCXB7_PORT) || defined(TCXB8_PORT) || defined(XB10_PORT) || \
-    defined(SCXER10_PORT) || defined(SCXF10_PORT)
+    defined(SCXER10_PORT) || defined(SCXF10_PORT) || defined(_PLATFORM_BANANAPI_R4_)
 static int protocol_feature_handler(struct nl_msg *msg, void *arg)
 {
     u32 *feat = arg;
@@ -6648,7 +6653,7 @@ int init_nl80211()
 {
     int ret;
 #if defined(VNTXER5_PORT) || defined(TARGET_GEMINI7_2) || defined(TCXB7_PORT) || defined(TCXB8_PORT) || defined(XB10_PORT) || \
-    defined(SCXER10_PORT) || defined(SCXF10_PORT)
+    defined(SCXER10_PORT) || defined(SCXF10_PORT) || defined(_PLATFORM_BANANAPI_R4_)
     u32 feat;
     int flags = 0;
 #endif
@@ -6751,7 +6756,7 @@ int init_nl80211()
     }
     init_interface_map();
 #if !defined(VNTXER5_PORT) && !defined(TARGET_GEMINI7_2) && !defined(TCXB7_PORT) && !defined(TCXB8_PORT) && \
-    !defined(XB10_PORT) && !defined(SCXER10_PORT) && !defined(SCXF10_PORT)
+    !defined(XB10_PORT) && !defined(SCXER10_PORT) && !defined(SCXF10_PORT) && !defined(_PLATFORM_BANANAPI_R4_)
     msg = nl80211_drv_cmd_msg(g_wifi_hal.nl80211_id, NULL, NLM_F_DUMP, NL80211_CMD_GET_WIPHY);
     if (msg == NULL) {
 #else
@@ -10809,8 +10814,8 @@ static int wifi_drv_get_mld_capab(void *priv, enum wpa_driver_if_type type,
 
 #ifdef CONFIG_GENERIC_MLO
     // TODO: remove hardcoded values
-    *eml_capa = 0x01;
-    *mld_capa_and_ops = 0x23;
+    //*eml_capa = 0x01;
+    //*mld_capa_and_ops = 0x23;
 #endif // CONFIG_GENERIC_MLO
 
     wifi_hal_dbg_print("%s:%d: eml_capa: 0x%x, mld_capa_and_ops: 0x%x\n", __func__, __LINE__,
