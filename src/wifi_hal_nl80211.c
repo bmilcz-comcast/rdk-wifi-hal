@@ -5578,12 +5578,11 @@ static int wiphy_dump_handler(struct nl_msg *msg, void *arg)
 
     nla_parse(tb, NL80211_ATTR_MAX, genlmsg_attrdata(gnlh, 0), genlmsg_attrlen(gnlh, 0), NULL);
 
-// BRAYAN: Possibly broken - split wiphy dump will trigger this behaviour as
+// BRAYAN: broken for split handlers - split wiphy dump will trigger this behaviour as
 // this func will be treated as a cb. Also for whom is this function
 // then ???
 #if !defined(VNTXER5_PORT) && !defined(TARGET_GEMINI7_2) && !defined(TCXB7_PORT) && !defined(TCXB8_PORT) && \
-    !defined(XB10_PORT) && !defined(SCXER10_PORT) && !defined(SCXF10_PORT)
-    //&& !defined(_PLATFORM_BANANAPI_R4_)
+    !defined(XB10_PORT) && !defined(SCXER10_PORT) && !defined(SCXF10_PORT) && !defined(_PLATFORM_BANANAPI_R4_)
     for (unsigned int j = 0; j < g_wifi_hal.num_radios; j++)
     {
         if (strcmp(g_wifi_hal.radio_info[j].name, nla_get_string(tb[NL80211_ATTR_WIPHY_NAME])) == 0) {
