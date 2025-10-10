@@ -5536,6 +5536,7 @@ static void wiphy_info_mbssid(struct wpa_driver_capa *cap, struct nlattr *attr)
 
 static int wiphy_dump_handler(struct nl_msg *msg, void *arg)
 {
+    wifi_hal_info_print("%s:%d BRAYAN: entering dump handler\n", __func__, __LINE__);
     wifi_radio_info_t *radio;
 #if defined(CONFIG_HW_CAPABILITIES) || defined(VNTXER5_PORT) || defined(TARGET_GEMINI7_2)
     struct wpa_driver_capa *capa;
@@ -5552,6 +5553,7 @@ static int wiphy_dump_handler(struct nl_msg *msg, void *arg)
     int ret = 0;
 #endif //FEATURE_SINGLE_PHY
 
+//BRAYAN: Aren't we essentially iterating over almost every possible product ?
 #if defined(VNTXER5_PORT) || defined(TARGET_GEMINI7_2) || defined(TCXB7_PORT) || defined(TCXB8_PORT) || defined(XB10_PORT) || \
     defined(SCXER10_PORT) || defined(SCXF10_PORT) || defined(_PLATFORM_BANANAPI_R4_)
     int existing_radio_found = 0;
@@ -5562,8 +5564,9 @@ static int wiphy_dump_handler(struct nl_msg *msg, void *arg)
 #ifndef FEATURE_SINGLE_PHY
     if (g_wifi_hal.num_radios > MAX_NUM_RADIOS) {
 #else //FEATURE_SINGLE_PHY
-			//BRAYAN: Replace with > but make sure we do not exceed this
-    if (g_wifi_hal.num_radios > MAX_NUM_RADIOS) {
+			//BRAYAN: Why is this conditional different ? We expect there to
+			//be 3 radios, as we have 3 bands (2.4,GHz, 5 and 6 GHz)
+    if (g_wifi_hal.num_radios >= MAX_NUM_RADIOS) {
 #endif //FEATURE_SINGLE_PHY
 #endif //CONFIG_WIFI_EMULATOR
         wifi_hal_dbg_print("%s:%d: Returning num radios:%d exceeds MAX:%d\n",
@@ -5575,8 +5578,12 @@ static int wiphy_dump_handler(struct nl_msg *msg, void *arg)
 
     nla_parse(tb, NL80211_ATTR_MAX, genlmsg_attrdata(gnlh, 0), genlmsg_attrlen(gnlh, 0), NULL);
 
+// BRAYAN: Possibly broken - split wiphy dump will trigger this behaviour as
+// this func will be treated as a cb. Also for whom is this function
+// then ???
 #if !defined(VNTXER5_PORT) && !defined(TARGET_GEMINI7_2) && !defined(TCXB7_PORT) && !defined(TCXB8_PORT) && \
-    !defined(XB10_PORT) && !defined(SCXER10_PORT) && !defined(SCXF10_PORT) && !defined(_PLATFORM_BANANAPI_R4_)
+    !defined(XB10_PORT) && !defined(SCXER10_PORT) && !defined(SCXF10_PORT)
+    //&& !defined(_PLATFORM_BANANAPI_R4_)
     for (unsigned int j = 0; j < g_wifi_hal.num_radios; j++)
     {
         if (strcmp(g_wifi_hal.radio_info[j].name, nla_get_string(tb[NL80211_ATTR_WIPHY_NAME])) == 0) {
@@ -5625,6 +5632,11 @@ static int wiphy_dump_handler(struct nl_msg *msg, void *arg)
 #ifdef FEATURE_SINGLE_PHY
     /* In case of BananaPi due to single phy architecture, multiple radios have to be
        processed in a single wiphy_dump_handler, thus the loop */
+    //BRAYAN: Why exactly ? Over netlink, there come only messages for
+    //configuring the phy0 and there is no attribute related to "radio". Why
+    //do we have to loop over this instead of doing this once and
+    //copying this to each radio since they are bound to share those
+    //settings ?
     for (unsigned int j=0; (j < num_radios_mapped && g_wifi_hal.num_radios < MAX_NUM_RADIOS); j++) {
 #endif //FEATURE_SINGLE_PHY
 #if !defined(VNTXER5_PORT) && !defined(TARGET_GEMINI7_2) && !defined(TCXB7_PORT) && !defined(TCXB8_PORT) && \
@@ -5663,7 +5675,6 @@ static int wiphy_dump_handler(struct nl_msg *msg, void *arg)
     if (tb[NL80211_ATTR_WIPHY_NAME]) {
         strcpy(radio->name, nla_get_string(tb[NL80211_ATTR_WIPHY_NAME]));
     }
-
 
 #if defined(CONFIG_HW_CAPABILITIES) || defined(VNTXER5_PORT) || defined(TARGET_GEMINI7_2)
     capa = &radio->driver_data.capa;
@@ -5944,6 +5955,9 @@ static int wiphy_dump_handler(struct nl_msg *msg, void *arg)
         radio->dev_id = nla_get_u64(tb[NL80211_ATTR_WDEV]);
     }
 
+// BRAYAN: There are already checks if the radios exists and if not we
+// create a new radio and increase this parameter. Why is this being
+// incremented here again ?
 #if !defined(VNTXER5_PORT) && !defined(TARGET_GEMINI7_2) && !defined(TCXB7_PORT) && !defined(TCXB8_PORT) && \
     !defined(XB10_PORT) && !defined(SCXER10_PORT) && !defined(SCXF10_PORT) && !defined(_PLATFORM_BANANAPI_R4_)
 
@@ -10811,12 +10825,6 @@ static int wifi_drv_get_mld_capab(void *priv, enum wpa_driver_if_type type,
             break;
         }
     }
-
-#ifdef CONFIG_GENERIC_MLO
-    // TODO: remove hardcoded values
-    //*eml_capa = 0x01;
-    //*mld_capa_and_ops = 0x23;
-#endif // CONFIG_GENERIC_MLO
 
     wifi_hal_dbg_print("%s:%d: eml_capa: 0x%x, mld_capa_and_ops: 0x%x\n", __func__, __LINE__,
         *eml_capa, *mld_capa_and_ops);
