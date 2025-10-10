@@ -5564,8 +5564,8 @@ static int wiphy_dump_handler(struct nl_msg *msg, void *arg)
 #ifndef FEATURE_SINGLE_PHY
     if (g_wifi_hal.num_radios > MAX_NUM_RADIOS) {
 #else //FEATURE_SINGLE_PHY
-			//BRAYAN: Why is this conditional different ? We expect there to
-			//be 3 radios, as we have 3 bands (2.4,GHz, 5 and 6 GHz)
+			//BRAYAN: Why is this conditional different ?
+			//Doesnt seem like needed
     if (g_wifi_hal.num_radios >= MAX_NUM_RADIOS) {
 #endif //FEATURE_SINGLE_PHY
 #endif //CONFIG_WIFI_EMULATOR
@@ -5631,11 +5631,11 @@ static int wiphy_dump_handler(struct nl_msg *msg, void *arg)
 #ifdef FEATURE_SINGLE_PHY
     /* In case of BananaPi due to single phy architecture, multiple radios have to be
        processed in a single wiphy_dump_handler, thus the loop */
-    //BRAYAN: Why exactly ? Over netlink, there come only messages for
+    //BRAYAN: Why exactly ? Over netlink, we have only messages for
     //configuring the phy0 and there is no attribute related to "radio". Why
     //do we have to loop over this instead of doing this once and
     //copying this to each radio since they are bound to share those
-    //settings ?
+    //settings ? Also - this is broken for split wiphy.
     for (unsigned int j=0; (j < num_radios_mapped && g_wifi_hal.num_radios < MAX_NUM_RADIOS); j++) {
 #endif //FEATURE_SINGLE_PHY
 #if !defined(VNTXER5_PORT) && !defined(TARGET_GEMINI7_2) && !defined(TCXB7_PORT) && !defined(TCXB8_PORT) && \
@@ -5954,9 +5954,9 @@ static int wiphy_dump_handler(struct nl_msg *msg, void *arg)
         radio->dev_id = nla_get_u64(tb[NL80211_ATTR_WDEV]);
     }
 
-// BRAYAN: There are already checks if the radios exists and if not we
-// create a new radio and increase this parameter. Why is this being
-// incremented here again ?
+// BRAYAN: I think this is artificailly increased each time it loops
+// (initially was 3) in order for every "radio" structure to be updated
+// accordingly. With split wiphy this will break.
 #if !defined(VNTXER5_PORT) && !defined(TARGET_GEMINI7_2) && !defined(TCXB7_PORT) && !defined(TCXB8_PORT) && \
     !defined(XB10_PORT) && !defined(SCXER10_PORT) && !defined(SCXF10_PORT) && !defined(_PLATFORM_BANANAPI_R4_)
 
