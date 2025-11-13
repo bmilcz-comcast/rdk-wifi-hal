@@ -99,7 +99,30 @@ static int json_parse_backhaul_ssid(char *backhaul_ssid)
 
 int platform_pre_init()
 {
-    wifi_hal_dbg_print("%s:%d \n",__func__,__LINE__);    
+    wifi_hal_dbg_print("%s:%d \n",__func__,__LINE__);
+    system("iw phy0 interface add wifi3 type __ap");
+    system("iw phy0 interface add wifi4 type __ap");
+    system("iw phy0 interface add wifi5 type __ap");
+    system("iw phy0 interface add wifi6 type __ap");
+    system("iw phy0 interface add wifi7 type __ap");
+    system("iw phy0 interface add wifi8 type __ap");
+    system("iw phy0 interface add wifi9 type __ap");
+    system("iw phy0 interface add wifi10 type __ap");
+    system("iw phy0 interface add wifi11 type __ap");
+    system("iw phy0 interface add wifi12 type __ap");
+    system("iw phy0 interface add wifi13 type __ap");
+    system("iw phy0 interface add wifi14 type __ap");
+    system("iw phy0 interface add wifi15 type __ap");
+    system("iw phy0 interface add wifi16 type __ap");
+    system("iw phy0 interface add wifi17 type __ap");
+    system("iw phy0 interface add wifi18 type __ap");
+    system("iw phy0 interface add wifi19 type __ap");
+    system("iw phy0 interface add wifi20 type __ap");
+    system("iw phy0 interface add wifi21 type __ap");
+    system("iw phy0 interface add wifi22 type __ap");
+    system("iw phy0 interface add wifi23 type __ap");
+    system("iw phy0 interface add wifi24 type __ap");
+    system("iw phy0 interface add wifi25 type __ap");
     return 0;
 }
 
