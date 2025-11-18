@@ -17885,6 +17885,7 @@ int wifi_drv_link_add(void *priv, u8 link_id, const u8 *addr, void *bss_ctx)
     return 0;
 }
 
+#if defined(BANANA_PI_PORT) && defined(CONFIG_GENERIC_MLO)
 static int del_beacon(wifi_interface_info_t *interface, int link_id)
 {
     struct nl_msg *msg;
@@ -17972,6 +17973,7 @@ int wifi_drv_link_remove(void *priv, enum wpa_driver_if_type type, const char *i
 
     return 0;
 }
+#endif // BANANA_PI_PORT && CONFIG_GENERIC_MLO
 
 #endif // HOSTAPD_VERSION >= 211
 
@@ -18158,7 +18160,9 @@ const struct wpa_driver_ops g_wpa_driver_nl80211_ops = {
 #endif /* HOSTAPD_VERSION >= 210 */
 #if HOSTAPD_VERSION >= 211 // 2.11
     .link_add = wifi_drv_link_add,
+#if defined(BANANA_PI_PORT) && defined(CONFIG_GENERIC_MLO)
     .link_remove = wifi_drv_link_remove,
+#endif
 #endif // HOSTAPD_VERSION >= 211
 };
 
