@@ -729,7 +729,7 @@ INT wifi_hal_setRadioOperatingParameters(wifi_radio_index_t index, wifi_radio_op
     wifi_radio_operationParam_t old_operationParam;
     platform_set_radio_pre_init_t set_radio_pre_init_fn;
     bool is_channel_changed;
-    int ret;
+    int ret = 0;
 
 #ifdef CMXB7_PORT
     int dfs_start_chan = 52, dfs_end_chan = 144;
@@ -974,10 +974,59 @@ INT wifi_hal_setRadioOperatingParameters(wifi_radio_index_t index, wifi_radio_op
         }
 #endif
         if (memcmp((unsigned char *)&radio->oper_param, (unsigned char *)operationParam, sizeof(wifi_radio_operationParam_t)) == 0) {
+            //FIXME: Below can fail for multiple reasons (CSA active,
+            //scanning, CAC, DFS etc.). This way of handling
+            //asynchronous operations as below can cause problems.
             if (is_channel_changed) {
                 wifi_hal_dbg_print("%s:%d: Switch channel on radio index:%d\n", __func__, __LINE__,
                     index);
-                if ((ret = nl80211_switch_channel(radio)) == -1) {
+                wifi_interface_info_t *if_it;
+                bool first_interface = true;
+                hash_map_foreach(radio->interface_map, if_it) {
+                    ret = nl80211_switch_channel(radio, if_it);
+                    if (ret != 0) {
+                        if (first_interface == true)
+                        {
+                            goto channel_switch_failure;
+                        }
+                        //we assume that the error is due to CSA being
+                        //active
+                    }
+                    first_interface = false;
+                }
+
+#if defined(CONFIG_GENERIC_MLO) && defined(BANANA_PI_PORT)
+                //On Mediatek currently we have to send messages for all
+                //affiliated links in MLD group.
+                if_it = NULL;
+                hash_map_foreach(radio->interface_map, if_it) {
+                    wifi_hal_error_print("%s:%d: BRAYAN CHANNEL SWITCH BPI\n", __func__, __LINE__);
+                    if (wifi_hal_is_mld_link_exists(if_it))
+                        {
+                            for (int i = 0; i < g_wifi_hal.num_radios; ++i)
+                            {
+                                wifi_radio_info_t *radio_it = &g_wifi_hal.radio_info[i];
+                                if (radio_it == radio)
+                                {
+                                    wifi_hal_error_print("%s:%d: BRAYAN IGNORING SAME RADIO\n", __func__, __LINE__);
+                                    continue;
+                                }
+                                wifi_interface_info_t *if_it_radio;
+                                hash_map_foreach(radio_it->interface_map, if_it_radio) {
+                                    if(wifi_hal_is_mld_link_exists(if_it_radio))
+                                    {
+                                        wifi_hal_error_print("%s:%d: BRAYAN FOUND A LINK ON RADIO %d AND INTERFACEi %s\n", __func__, __LINE__, i, if_it_radio->name);
+                                        ret = nl80211_switch_channel(radio_it, if_it_radio);
+                                        if (ret != 0)
+                                            goto channel_switch_failure;
+                                    }
+                                }
+                            }
+                        }
+                    }
+#endif
+channel_switch_failure:
+                if (ret == -1) {
                     wifi_hal_error_print("%s:%d: Error switching channel\n", __func__, __LINE__);
                     goto reload_config;
                 } else if (ret != 0) {

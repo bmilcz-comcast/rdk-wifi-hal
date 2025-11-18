@@ -975,7 +975,7 @@ static void nl80211_ch_switch_notify_event(wifi_interface_info_t *interface, str
     if(tb[NL80211_ATTR_CENTER_FREQ2]) {
         cf2 = nla_get_u32(tb[NL80211_ATTR_CENTER_FREQ2]);
     }
-    
+
     if (tb[NL80211_ATTR_RADAR_EVENT]) {
         event_type = nla_get_u32(tb[NL80211_ATTR_RADAR_EVENT]);
         radio_channel_param.sub_event = (wifi_radar_eventType_t)event_type;
@@ -984,12 +984,13 @@ static void nl80211_ch_switch_notify_event(wifi_interface_info_t *interface, str
     wifi_device_callbacks_t *callbacks;
     callbacks = get_hal_device_callbacks();
 
-    radio = get_radio_by_rdk_index(interface->vap_info.radio_index);
+    radio = get_radio_by_rdk_index(interface->rdk_radio_index);
     if (radio == NULL) {
         wifi_hal_error_print("%s:%d: could not find radio index:%d\n", __func__, __LINE__, interface->vap_info.radio_index);
         return;
     }
 
+    wifi_hal_error_print("%s:%d: radio index:%d, name: %s\n", __func__, __LINE__, interface->rdk_radio_index, interface->name);
     wifi_radio_operationParam_t *radio_param;
     wifi_radio_operationParam_t tmp_radio_param;
     radio_param = &radio->oper_param;
@@ -1073,13 +1074,17 @@ static void nl80211_ch_switch_notify_event(wifi_interface_info_t *interface, str
         }
         if (interface->vap_info.vap_mode == wifi_vap_mode_ap &&
             (interface->u.ap.hapd.csa_in_progress || interface->u.ap.hapd.iface->freq != freq)) {
+            wifi_hal_info_print("%s:%d:csa_in_progress still\n", __func__,
+                __LINE__);
             pthread_mutex_lock(&g_wifi_hal.hapd_lock);
             if (interface->u.ap.hapd.iface != NULL) {
                 interface->u.ap.hapd.iface->freq = freq;
             }
 
+            wifi_hal_info_print("%s:%d:csa_in_progress - will be cleaned ?\n", __func__, __LINE__);
             if (interface->u.ap.hapd.csa_in_progress) {
-                hostapd_cleanup_cs_params(&interface->u.ap.hapd);
+              wifi_hal_info_print("%s:%d:cleaning up csa\n", __func__, __LINE__);
+              hostapd_cleanup_cs_params(&interface->u.ap.hapd);
             }
 
             if (interface->beacon_set) {
@@ -1698,10 +1703,11 @@ int process_global_nl80211_event(struct nl_msg *msg, void *arg)
     struct nlattr *tb[NL80211_ATTR_MAX + 1];
     unsigned int ifidx = 0;
     int wiphy_idx_rx = -1;
-    //unsigned long wdev_id = 0;
+    unsigned long wdev_id = 0;
     wifi_radio_info_t *radio;
     wifi_interface_info_t *interface;
     unsigned int i;
+    u8 link_id = MLD_INVALID_VALUE;
 
     gnlh = nlmsg_data(nlmsg_hdr(msg));
     nla_parse(tb, NL80211_ATTR_MAX, genlmsg_attrdata(gnlh, 0), genlmsg_attrlen(gnlh, 0), NULL);
@@ -1714,6 +1720,10 @@ int process_global_nl80211_event(struct nl_msg *msg, void *arg)
     } else if (tb[NL80211_ATTR_WIPHY]) {
         wiphy_idx_rx = nla_get_u32(tb[NL80211_ATTR_WIPHY]);
     }
+
+    if (tb[NL80211_ATTR_MLO_LINK_ID])
+        link_id = nla_get_u8(tb[NL80211_ATTR_MLO_LINK_ID]);
+
     //else if (tb[NL80211_ATTR_WDEV]) {
       //  wdev_id = nla_get_u64(tb[NL80211_ATTR_WDEV]);
     //}
@@ -1727,7 +1737,7 @@ int process_global_nl80211_event(struct nl_msg *msg, void *arg)
         gnlh->cmd == NL80211_CMD_SCAN_ABORTED)
     {
         /* Special case for SCAN events - don't drop these event even if the interface is not fully configured */
-        interface = get_interface_by_if_index(ifidx);
+        interface = get_interface_by_if_index(ifidx, link_id);
         if (interface) {
             do_process_drv_event(interface, gnlh->cmd, tb);
             return NL_SKIP;
@@ -1738,7 +1748,7 @@ int process_global_nl80211_event(struct nl_msg *msg, void *arg)
     if(gnlh->cmd == NL80211_CMD_RADAR_DETECT) {
         event_type = nla_get_u32(tb[NL80211_ATTR_RADAR_EVENT]);
         if( event_type == NL80211_RADAR_CAC_FINISHED || event_type == NL80211_RADAR_CAC_ABORTED ) {
-            interface = get_interface_by_if_index(ifidx);
+            interface = get_interface_by_if_index(ifidx, link_id);
             if(interface) {
                 do_process_drv_event(interface, gnlh->cmd, tb);
                 return NL_SKIP;
@@ -1752,11 +1762,12 @@ int process_global_nl80211_event(struct nl_msg *msg, void *arg)
         while (interface != NULL) {
             if ((wiphy_idx_rx != -1) || ((ifidx == interface->index) && (interface->vap_configured == true)) ) {
                 do_process_drv_event(interface, gnlh->cmd, tb);
+                wifi_hal_dbg_print("%s:%d: event registerd - processing\n", __func__, __LINE__);
             } else {
-                //wifi_hal_dbg_print("%s:%d: Skipping event %d for foreign interface (ifindex %d wdev 0x%llx)\n", 
-                    //__func__, __LINE__,
-                    //gnlh->cmd,
-                    //ifidx, (long long unsigned int) wdev_id);
+                wifi_hal_dbg_print("%s:%d: Skipping event %d for foreign interface (ifindex %d wdev 0x%llx)\n", 
+                    __func__, __LINE__,
+                    gnlh->cmd,
+                    ifidx, (long long unsigned int) wdev_id);
             }
 
             interface = hash_map_get_next(radio->interface_map, interface);

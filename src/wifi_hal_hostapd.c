@@ -403,7 +403,8 @@ int update_hostap_data(wifi_interface_info_t *interface)
         return RETURN_ERR;
     }
 
-    radio = get_radio_by_rdk_index(vap->radio_index);
+    wifi_hal_error_print("%s:%d: BRAYANN: RADIO IDX IS %d FOR IF %s\n", __func__, __LINE__, vap->radio_index, interface->name);
+    radio = get_radio_by_rdk_index(interface->rdk_radio_index);
     iconf = &radio->iconf;
 
     hapd = &interface->u.ap.hapd;
@@ -438,7 +439,7 @@ int update_hostap_data(wifi_interface_info_t *interface)
 
     init_oem_config(interface);
     init_radius_config(interface);
-    
+
     update_hostap_driver(vap->vap_index, hapd);
     driver_init(interface);
 
@@ -446,6 +447,9 @@ int update_hostap_data(wifi_interface_info_t *interface)
         wifi_hal_error_print("%s:%d:driver params is NULL\n", __func__, __LINE__);
         return RETURN_ERR;
     }
+
+    wifi_interface_info_t *test = (wifi_interface_info_t*) hapd->drv_priv;
+    wifi_hal_error_print("%s:%d: hapd->drv_priv interface is %s\n", __func__, __LINE__, test->name);
 #ifdef CONFIG_WIFI_EMULATOR_EXT_AGENT
     interface->u.sta.wpa_sm = NULL;
 #endif
@@ -1467,7 +1471,7 @@ int update_hostap_iface(wifi_interface_info_t *interface)
         return RETURN_ERR;
     }
     vap = &interface->vap_info;
-    radio = get_radio_by_rdk_index(vap->radio_index);
+    radio = get_radio_by_rdk_index(interface->rdk_radio_index);
     param = &radio->oper_param;
     
     iface = &interface->u.ap.iface;

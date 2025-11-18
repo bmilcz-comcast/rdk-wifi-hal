@@ -7336,16 +7336,14 @@ static int nl80211_fill_chandef(struct nl_msg *msg, wifi_radio_info_t *radio, wi
     return 0;
 }
 
-int nl80211_switch_channel(wifi_radio_info_t *radio)
+int nl80211_switch_channel(wifi_radio_info_t *radio, wifi_interface_info_t *interface)
 {
-    wifi_interface_info_t *interface;
     wifi_radio_operationParam_t *param;
     struct csa_settings csa_settings;
     int sec_chan_offset, freq, freq1, bandwidth;
     u8 seg0;
     char country[8];
     int ret = 0;
-    bool is_first_interface;
 
     param = &radio->oper_param;
     get_coutry_str_from_code(param->countryCode, country);
@@ -7425,27 +7423,23 @@ int nl80211_switch_channel(wifi_radio_info_t *radio)
     wifi_hal_dbg_print("%s:%d chan_freq: %d center_freq: %d bandwidth: %d sec_chan_offset: %d\n",
         __func__, __LINE__, freq, freq1, bandwidth, sec_chan_offset);
 
-    is_first_interface = true;
-    hash_map_foreach(radio->interface_map, interface) {
-        if (!interface->bss_started) {
-            continue;
-        }
+    if (!interface->bss_started) {
+      return 0;
+    }
 
-        wifi_hal_dbg_print("%s:%d interface: %s switch channel to %d\n", __func__, __LINE__,
-            interface->name, param->channel);
+    wifi_hal_dbg_print("%s:%d interface: %s switch channel to %d\n", __func__, __LINE__,
+        interface->name, param->channel);
 
-        pthread_mutex_lock(&g_wifi_hal.hapd_lock);
-        ret = hostapd_switch_channel(&interface->u.ap.hapd, &csa_settings);
-        pthread_mutex_unlock(&g_wifi_hal.hapd_lock);
+    pthread_mutex_lock(&g_wifi_hal.hapd_lock);
+    ret = hostapd_switch_channel(&interface->u.ap.hapd, &csa_settings);
+    pthread_mutex_unlock(&g_wifi_hal.hapd_lock);
 
-        /* Ignore the error if the error is not on first interface,
-           as CSA would be in progress after the first interface channel switch. */
-        if (ret != 0 && is_first_interface == true) {
-            wifi_hal_error_print("%s:%d interface: %s failed to switch channel to %d, error: %d\n",
-                __func__, __LINE__, interface->name, param->channel, ret);
-            return ret;
-        }
-        is_first_interface = false;
+    /* Ignore the error if the error is not on first interface,
+       as CSA would be in progress after the first interface channel switch. */
+    if (ret != 0) {
+        wifi_hal_error_print("%s:%d interface: %s failed to switch channel to %d, error: %d\n",
+            __func__, __LINE__, interface->name, param->channel, ret);
+        return ret;
     }
     return 0;
 }
@@ -15650,16 +15644,16 @@ void* wifi_drv_init(struct hostapd_data *hapd, struct wpa_init_params *params)
     wifi_interface_info_t *interface;
     //wifi_driver_data_t *drv;
     wifi_vap_info_t *vap;
-    wifi_radio_info_t *radio;
+    //wifi_radio_info_t *radio;
 
     interface = (wifi_interface_info_t *)params->global_priv;
     vap = &interface->vap_info;
 
-    radio = get_radio_by_rdk_index(vap->radio_index);
+    //radio = get_radio_by_rdk_index(interface->rdk_radio_index);
     //XXX check wiphy info? wpa_driver_nl80211_get_info hostapd
 
     wifi_hal_dbg_print("%s:%d: Enter radio index: %d interface: %s vap index: %d\n", __func__, __LINE__,
-        radio->index, interface->name, vap->vap_index);
+        interface->rdk_radio_index, interface->name, vap->vap_index);
 
     //drv = (wifi_driver_data_t *)&radio->driver_data;
 
