@@ -1983,7 +1983,6 @@ wifi_interface_info_t *get_interface_by_if_index(unsigned int if_index, u8 link_
     unsigned int i;
     u8 if_link_id;
 
-
     wifi_hal_dbg_print("%s:%d: Searching for ifidx:%d and link_id:%d\n", __func__, __LINE__, if_index, link_id);
 
     for (i = 0; i < g_wifi_hal.num_radios; i++) {
