@@ -532,6 +532,7 @@ static bool platform_down_reqd(wifi_radio_index_t r_index, wifi_vap_info_map_t *
 
 int platform_radio_up(int radio_index, bool up)
 {
+    wifi_hal_stats_dbg_print("%s:%d Entering\n", __func__, __LINE__);
     int rc = 0, isup = 0;
     int i, ismlo, start, end, do_ioctl;
     char osifname[16], cmd[BUFLEN_256] = { 0 };
@@ -563,6 +564,7 @@ int platform_radio_up(int radio_index, bool up)
             do_ioctl = TRUE;
             isup = -1;	/* don't care */
         } else {
+            wifi_hal_stats_dbg_print("%s:%d ioctl WLC_GET_UP on non-MLO\n", __func__, __LINE__);
             /* non-MLO radio, no need to check other radios */
             rc = wl_ioctl(osifname, WLC_GET_UP, &isup, sizeof(isup));
             if (rc < 0) {
@@ -911,6 +913,9 @@ int platform_pre_init()
 static int enable_spect_management(int radio_index, int enable)
 {
 #if defined(TCXB7_PORT) || defined(TCXB8_PORT)
+    
+    wifi_hal_stats_dbg_print("%s:%d Entering\n", __func__, __LINE__);
+
     char radio_dev[IFNAMSIZ];
 
     snprintf(radio_dev, sizeof(radio_dev), "wl%d", radio_index);
@@ -941,6 +946,7 @@ static int disable_dfs_auto_channel_change(int radio_index, int disable)
 #if defined(FEATURE_HOSTAP_MGMT_FRAME_CTRL)
     char radio_dev[IFNAMSIZ];
 
+    wifi_hal_stats_dbg_print("%s:%d Entering\n", __func__, __LINE__);
     snprintf(radio_dev, sizeof(radio_dev), "wl%d", radio_index);
 
     if (wl_ioctl(radio_dev, WLC_DOWN, NULL, 0) < 0) {
@@ -1923,6 +1929,8 @@ static bool needs_conf_mbssid_num_frames(uint vap_index, int hostap_mgt_frame_ct
 
 static int platform_set_hostap_ctrl(wifi_radio_info_t *radio, uint vap_index, int enable)
 {
+
+    wifi_hal_stats_dbg_print("%s:%d Entering\n", __func__, __LINE__);
     int assoc_ctrl;
     char buf[128] = { 0 };
     char interface_name[8] = { 0 };
@@ -2017,6 +2025,7 @@ static int platform_set_hostap_ctrl(wifi_radio_info_t *radio, uint vap_index, in
 #endif // defined(XB10_PORT) || defined(SCXER10_PORT) || defined(SCXF10_PORT)
 
 #if !(defined(CONFIG_IEEE80211BE) && defined(XB10_PORT) && defined(MLO_ENAB))
+    wifi_hal_stats_dbg_print("%s:%d ioctl WLC_GET_UP on non-MLO\n", __func__, __LINE__);
     if (wl_ioctl(interface_name, WLC_UP, NULL, 0) < 0) {
         wifi_hal_error_print("%s:%d failed to set interface up for %s, err: %d (%s)\n", __func__,
             __LINE__, interface_name, errno, strerror(errno));
