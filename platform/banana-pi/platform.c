@@ -25,11 +25,12 @@
 * Licensed under the BSD-3 License
 **************************************************************************/
 
-#include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
-#include "wifi_hal_priv.h"
 #include "wifi_hal.h"
+#include "wifi_hal_priv.h"
+#include <net/if.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
 #define NULL_CHAR '\0'
 #define NEW_LINE '\n'
@@ -44,6 +45,7 @@
 
 int wifi_nvram_defaultRead(char *in,char *out);
 int _syscmd(char *cmd, char *retBuf, int retBufSize);
+int dealloc_mld(wifi_interface_info_t *interface);
 
 typedef struct {
     mac_address_t *macs;
@@ -293,6 +295,10 @@ int platform_pre_create_vap(wifi_radio_index_t index, wifi_vap_info_map_t *map)
     wifi_vap_info_t *vap;
     wifi_interface_info_t *interface;
 
+    char *mld_name;
+    mac_address_t mld_mac = { 0 };
+    unsigned int if_idx;
+
     wifi_hal_dbg_print("%s:%d \n",__func__,__LINE__);
 
     if (map == NULL)
@@ -321,33 +327,187 @@ int platform_pre_create_vap(wifi_radio_index_t index, wifi_vap_info_map_t *map)
         if (vap->vap_mode != wifi_vap_mode_ap) {
             continue;
         }
+
         interface = get_interface_by_vap_index(vap->vap_index);
         if (interface == NULL) {
             wifi_hal_error_print("%s:%d: failed to get interface for vap_index %d\n", __func__,
                 __LINE__, vap->vap_index);
+            continue;
+        }
+
+#ifdef CONFIG_GENERIC_MLO
+        if (wifi_hal_is_mld_enabled(interface) == vap->u.bss_info.mld_info.common_info.mld_enable) {
+            continue;
+        }
+
+        if (vap->u.bss_info.mld_info.common_info.mld_enable == false) {
+            if (nl80211_enable_ap(interface, false) < 0) {
+                wifi_hal_error_print("%s:%d: interface:%s link id:%d failed to disable AP\n",
+                    __func__, __LINE__, interface->mld_name, wifi_hal_get_mld_link_id(interface));
+                return -1;
+            }
+
+            pthread_mutex_lock(&g_wifi_hal.hapd_lock);
+            deinit_bss(&interface->u.ap.hapd);
+            if (interface->u.ap.hapd.conf->ssid.wpa_psk != NULL &&
+                interface->u.ap.hapd.conf->ssid.wpa_psk->next == NULL) {
+                hostapd_config_clear_wpa_psk(&interface->u.ap.hapd.conf->ssid.wpa_psk);
+            }
+            pthread_mutex_unlock(&g_wifi_hal.hapd_lock);
+
+            wifi_interface_info_t *first_interface = wifi_hal_get_first_mld_interface(interface);
+            if (interface == NULL) {
+                wifi_hal_error_print("%s:%d: Failed to get first MLD interface\n", __func__,
+                    __LINE__);
+                return -1;
+            }
+
+            dealloc_mld(interface);
+
+            wifi_interface_info_t *new_first_interface = wifi_hal_get_first_mld_interface(
+                interface);
+
+            if (first_interface == interface) {
+                if (interface->mgmt_frames_registered) {
+                    nl80211_unregister_mgmt_frames(interface);
+                }
+                if (interface->spurious_frames_registered) {
+                    nl80211_unregister_spurious_frames(interface);
+                }
+                if (interface->data_frames_registered) {
+                    unregister_data_frame_socket(interface);
+                }
+
+                if (new_first_interface != NULL) {
+                    nl80211_register_mgmt_frames(new_first_interface);
+                    nl80211_register_spurious_frames(new_first_interface);
+                    register_data_frame_socket(new_first_interface);
+                }
+            }
+
+            // Remove MLD mac address
+            if (wifi_hal_set_mld_mac_address(interface, interface->mac) < 0) {
+                wifi_hal_error_print("%s:%d: Failed to set MAC address for interface %s\n",
+                    __func__, __LINE__, interface->mld_name);
+                return -1;
+            }
+
+            if ((interface->index = if_nametoindex(interface->name)) == 0) {
+                wifi_hal_error_print(
+                    "%s:%d: Failed to get ifindex for switching from MLD interface %s\n", __func__,
+                    __LINE__, interface->mld_name);
+                return -1;
+            }
+
+            if (wifi_hal_set_mld_enabled(interface,
+                    vap->u.bss_info.mld_info.common_info.mld_enable) < 0) {
+                wifi_hal_error_print("Failed to mld_enable %d on VAP idx %d\n",
+                    vap->u.bss_info.mld_info.common_info.mld_id, vap->vap_index);
+                return -1;
+            }
+
+            interface->bss_started = false;
+            interface->vap_initialized = false;
+            interface->vap_configured = false;
+
+            //Reload MLD from which link was removed
+            reload_vap_configuration(new_first_interface);
+            continue;
+        }
+
+        if (wifi_hal_set_mld_enabled(interface, vap->u.bss_info.mld_info.common_info.mld_enable) <
+            0) {
+            wifi_hal_error_print("Failed to mld_enable %d on VAP idx %d\n",
+                vap->u.bss_info.mld_info.common_info.mld_id, vap->vap_index);
             return -1;
         }
-        // Override MLO configuration because MLD enabled on the boot.
-        // TODO: dynamic configuration
-        vap->u.bss_info.mld_info.common_info.mld_enable =
-            interface->vap_info.u.bss_info.mld_info.common_info.mld_enable;
+
+        mld_name = wifi_hal_get_mld_name_by_interface_name(interface->name);
+        if (mld_name == NULL) {
+            wifi_hal_error_print(
+                "%s:%d: MLD interface is enabled, but interface name is unset - skipping\n",
+                __func__, __LINE__);
+            continue;
+        }
+
+        strncpy(interface->mld_name, mld_name, sizeof(interface->mld_name) - 1);
+
+        wifi_radio_info_t *radio = get_radio_by_rdk_index(index);
+        if (radio == NULL) {
+            wifi_hal_error_print("%s:%d: Failed to get radio for interface %s for MLD setup\n",
+                __func__, __LINE__, interface->name);
+            return -1;
+        }
+
+        if (wifi_hal_get_mac_address(mld_name, mld_mac) < 0) {
+            wifi_hal_error_print("%s:%d: Failed to get MAC address for interface %s\n", __func__,
+                __LINE__, mld_name);
+            return -1;
+        }
+
+        if (wifi_hal_set_mld_mac_address(interface, mld_mac) < 0) {
+            wifi_hal_error_print("Failed to set MAC on MLD id %d on VAP idx %d\n",
+                vap->u.bss_info.mld_info.common_info.mld_id, vap->vap_index);
+            return -1;
+        }
+
+        //This is feedback info to datamodel on MLD address.
         memcpy(vap->u.bss_info.mld_info.common_info.mld_addr,
             interface->vap_info.u.bss_info.mld_info.common_info.mld_addr,
             sizeof(vap->u.bss_info.mld_info.common_info.mld_addr));
-        vap->u.bss_info.mld_info.common_info.mld_link_id =
-            interface->vap_info.u.bss_info.mld_info.common_info.mld_link_id;
-        vap->u.bss_info.mld_info.common_info.mld_id =
-            interface->vap_info.u.bss_info.mld_info.common_info.mld_id;
 
-        // Disable non-MLD interface so it's MAC can be reused for MLD link
+        if (wifi_hal_set_mld_id(interface, vap->u.bss_info.mld_info.common_info.mld_id) < 0) {
+            wifi_hal_error_print("Failed to set MLD id %d on VAP idx %d\n",
+                vap->u.bss_info.mld_info.common_info.mld_id, vap->vap_index);
+            return -1;
+        }
+
+        /*if (wifi_hal_set_mld_link_id(interface, vap->u.bss_info.mld_info.common_info.mld_link_id) <
+            0) {
+            wifi_hal_error_print("Failed to set MLD link id %d on MLD id %d on VAP idx %d\n",
+                vap->u.bss_info.mld_info.common_info.mld_link_id,
+                vap->u.bss_info.mld_info.common_info.mld_id, vap->vap_index);
+            return -1;
+        }*/
+
+        if_idx = if_nametoindex(mld_name);
+        if (if_idx == 0) {
+            wifi_hal_error_print("%s:%d: Failed to find interface %s for MLD setup\n", __func__,
+                __LINE__, mld_name);
+            return -1;
+        }
+
+        if (if_idx == interface->index) {
+            continue;
+        }
+
+        pthread_mutex_lock(&g_wifi_hal.hapd_lock);
+        deinit_bss(&interface->u.ap.hapd);
+        if (interface->u.ap.hapd.conf->ssid.wpa_psk != NULL &&
+            interface->u.ap.hapd.conf->ssid.wpa_psk->next == NULL) {
+            hostapd_config_clear_wpa_psk(&interface->u.ap.hapd.conf->ssid.wpa_psk);
+        }
+        pthread_mutex_unlock(&g_wifi_hal.hapd_lock);
+
+        nl80211_unregister_mgmt_frames(interface);
+        nl80211_unregister_spurious_frames(interface);
+        unregister_data_frame_socket(interface);
+
         if (vap->u.bss_info.mld_info.common_info.mld_enable &&
+            if_nametoindex(interface->name) != 0 &&
             nl80211_interface_enable(interface->name, false) < 0) {
             wifi_hal_error_print("%s:%d: failed to disable interface %s\n", __func__, __LINE__,
                 interface->name);
             return -1;
         }
-    }
 
+        interface->bss_started = false;
+        interface->vap_initialized = false;
+        interface->vap_configured = false;
+
+        interface->index = if_idx;
+    }
+#endif // CONFIG_GENERIC_MLO
     return 0;
 }
 
@@ -896,6 +1056,7 @@ static int alloc_mld(wifi_interface_info_t *interface)
         wifi_hal_dbg_print("%s:%d hapd->mld was found for interface %s\n", __func__, __LINE__,
             interface->name);
         hapd->mld = mld;
+        mld->refcount++;
         return 0;
     }
 
@@ -919,13 +1080,73 @@ static int alloc_mld(wifi_interface_info_t *interface)
     mld->ctrl_sock = -1;
     memcpy(mld->mld_addr, wifi_hal_get_mld_mac_address(interface), ETH_ALEN);
 
-    mld->refcount++;
-
     new_mld_array[g_wifi_hal.mld_count] = mld;
     hapd->mld = mld;
-    g_wifi_hal.mld_array = new_mld_array;
+    mld->refcount++;
+    mld->num_links = 0;
 
+    g_wifi_hal.mld_array = new_mld_array;
     g_wifi_hal.mld_count++;
+
+    return 0;
+}
+
+static void remove_mld_from_array(struct hostapd_mld *mld)
+{
+    unsigned int idx = 0;
+    for (; idx < g_wifi_hal.mld_count; ++idx) {
+        if (g_wifi_hal.mld_array[idx] == mld) {
+            break;
+        }
+    }
+
+    while (idx + 1 < g_wifi_hal.mld_count) {
+        g_wifi_hal.mld_array[idx] = g_wifi_hal.mld_array[idx + 1];
+        ++idx;
+    }
+}
+
+int dealloc_mld(wifi_interface_info_t *interface)
+{
+    wifi_hal_dbg_print("%s:%d BRAYAN Enter \n", __func__, __LINE__);
+
+    struct hostapd_data *hapd;
+    struct hostapd_mld **new_mld_array;
+    hapd = &interface->u.ap.hapd;
+
+    if (hapd->mld == NULL) {
+        wifi_hal_info_print("%s:%d hapd->mld empty, nothing to free \n", __func__, __LINE__);
+        return 0;
+    }
+
+    hostapd_if_link_remove(hapd, WPA_IF_AP_BSS, hapd->conf->iface, hapd->mld_link_id);
+    hostapd_mld_remove_link(hapd);
+    if (hapd->mld->refcount > 0) {
+        hapd->mld->refcount--;
+    }
+
+    if (hapd->mld->refcount == 0) {
+        remove_mld_from_array(hapd->mld);
+        free(hapd->mld);
+
+        if (g_wifi_hal.mld_count > 1) {
+            new_mld_array = realloc(g_wifi_hal.mld_array,
+                (g_wifi_hal.mld_count - 1) * sizeof(struct hostapd_mld *));
+            if (new_mld_array == NULL) {
+                wifi_hal_error_print("%s:%d Failed to reallocate MLD array\n", __func__, __LINE__);
+                return -1;
+            }
+        } else {
+            new_mld_array = NULL;
+        }
+
+        g_wifi_hal.mld_count--;
+        g_wifi_hal.mld_array = new_mld_array;
+    }
+
+    hapd->mld = NULL;
+    hapd->conf->mld_ap = 0;
+    hapd->conf->okc = 0;
 
     return 0;
 }
@@ -962,10 +1183,13 @@ int update_hostap_mlo(wifi_interface_info_t *interface)
     conf->okc = 1;
     hapd->mld_link_id = wifi_hal_get_mld_link_id(interface);
 
-    if (!wifi_hal_is_mld_link_exists(hapd) && hostapd_mld_add_link(hapd) != 0) {
-        wifi_hal_error_print("%s:%d: Failed to add link %d in MLD %s\n", __func__, __LINE__,
-            hapd->mld_link_id, hapd->conf->iface);
-        return -1;
+    if (!wifi_hal_is_mld_link_exists(hapd)) {
+        if (hostapd_mld_add_link(hapd)) {
+            wifi_hal_error_print("%s:%d: Failed to add link %d in MLD %s\n", __func__, __LINE__,
+                hapd->mld_link_id, hapd->conf->iface);
+            return -1;
+        }
+        hapd->mld_link_id = hapd->mld->next_link_id++;
     }
 
     /* Links have been removed due to interface down-up. Re-add all links and enable them,
