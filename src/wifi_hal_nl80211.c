@@ -6217,32 +6217,6 @@ int interface_info_handler(struct nl_msg *msg, void *arg)
                 return NL_SKIP;
             }
 
-#ifdef CONFIG_GENERIC_MLO
-            /*mld_name = wifi_hal_get_mld_name_by_interface_name(interface->name);
-            if (mld_name != NULL) {
-                mac_address_t mld_mac = {};
-
-                strncpy(interface->mld_name, mld_name, sizeof(interface->mld_name) - 1);
-                if ((interface->index = if_nametoindex(mld_name)) == 0) {
-                    wifi_hal_error_print("%s:%d: Failed to get ifindex for MLD interface %s: %s\n",
-                        __func__, __LINE__, mld_name, strerror(errno));
-                    return NL_SKIP;
-                }
-                if (wifi_hal_get_mac_address(mld_name, mld_mac) < 0) {
-                    wifi_hal_error_print("%s:%d: Failed to get MAC address for interface %s\n",
-                        __func__, __LINE__, mld_name);
-                    return NL_SKIP;
-                }
-
-                // TODO: how to transition from this to DB version while
-                // keeping update_wiphy happy ?
-                //wifi_hal_set_mld_enabled(interface, false);
-                //wifi_hal_set_mld_mac_address(interface, mld_mac);
-                //wifi_hal_set_mld_link_id(interface, link_id);
-                //link_id++;
-            }*/
-#endif // CONFIG_GENERIC_MLO
-
             wifi_hal_dbg_print("%s:%d: phy index: %d radio index: %d interface index: %d name: %s "
                                "type: %d mac:" MACSTR " vap index: %d vap name: %s mld name: %s\n",
                 __func__, __LINE__, radio->index, vap->radio_index, interface->index,

@@ -1423,7 +1423,6 @@ unsigned int wifi_hal_get_interface_ifindex(wifi_interface_info_t *interface);
 bool wifi_hal_is_mld_enabled(wifi_interface_info_t *interface);
 int wifi_hal_set_mld_enabled(wifi_interface_info_t *interface, bool enabled);
 int wifi_hal_get_mld_link_id(wifi_interface_info_t *interface);
-int wifi_hal_set_mld_link_id(wifi_interface_info_t *interface, int link_id);
 int wifi_hal_get_mld_id(wifi_interface_info_t *interface);
 int wifi_hal_set_mld_id(wifi_interface_info_t *interface, int mld_id);
 wifi_interface_info_t *wifi_hal_get_first_mld_interface(wifi_interface_info_t *interface);

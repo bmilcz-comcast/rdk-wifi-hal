@@ -5672,21 +5672,6 @@ int wifi_hal_get_mld_link_id(wifi_interface_info_t *interface)
     return NL80211_DRV_LINK_ID_NA;
 }
 
-int wifi_hal_set_mld_link_id(wifi_interface_info_t *interface, int link_id)
-{
-    if (interface == NULL) {
-        wifi_hal_error_print("%s:%d: NULL interface pointer\n", __func__, __LINE__);
-        return -1;
-    }
-
-    if (interface->vap_info.vap_mode == wifi_vap_mode_ap) {
-        interface->vap_info.u.bss_info.mld_info.common_info.mld_link_id = link_id;
-        return 0;
-    }
-
-    return -1;
-}
-
 int wifi_hal_get_mld_id(wifi_interface_info_t *interface)
 {
     if (interface == NULL) {
@@ -5726,7 +5711,6 @@ wifi_interface_info_t *wifi_hal_get_first_mld_interface(wifi_interface_info_t *i
     wifi_interface_info_t *interface_iter;
 
     if (!wifi_hal_is_mld_enabled(interface)) {
-        wifi_hal_error_print("%s:%d: BRAYAN MLD DISABLED on %s`\n", __func__, __LINE__, interface->name);
         return interface;
     }
 
@@ -5744,13 +5728,11 @@ wifi_interface_info_t *wifi_hal_get_first_mld_interface(wifi_interface_info_t *i
             }
 
             if (interface_iter->index != interface->index) {
-                wifi_hal_error_print("%s:%d: BRAYAN BAD IDX\n", __func__, __LINE__);
                 continue;
             }
 
             if (interface_iter->u.ap.hapd.mld != NULL) {
                 if (hostapd_mld_is_first_bss(&interface_iter->u.ap.hapd)) {
-                    wifi_hal_error_print("%s:%d: BRAYAN FOUND FIRST INTERFACE IS %s\n", __func__, __LINE__, interface->name);
                     return interface_iter;
                 }
             }
@@ -5985,7 +5967,8 @@ uint16_t freq_to_primary(uint16_t freq, wifi_channelBandwidth_t chwid)
     return freq;
 }
 
-static int reload_single_vap_configuration(wifi_interface_info_t *interface)
+
+static int reload_interface(wifi_interface_info_t *interface)
 {
     char *interface_name = wifi_hal_get_interface_name(interface);
     wifi_radio_info_t *radio = get_radio_by_rdk_index(interface->rdk_radio_index);
@@ -6035,6 +6018,14 @@ static int reload_single_vap_configuration(wifi_interface_info_t *interface)
     }
     pthread_mutex_unlock(&g_wifi_hal.hapd_lock);
 
+    return 0;
+}
+
+static int restart_interface(wifi_interface_info_t *interface)
+{
+    char *interface_name = wifi_hal_get_interface_name(interface);
+    wifi_radio_info_t *radio = get_radio_by_rdk_index(interface->rdk_radio_index);
+
     wifi_hal_info_print("%s:%d: interface:%s update hostapd params\n", __func__, __LINE__,
         interface_name);
     if (update_hostap_interface_params(interface) < 0) {
@@ -6044,6 +6035,17 @@ static int reload_single_vap_configuration(wifi_interface_info_t *interface)
     }
 
     interface->in_reconf = false;
+
+#if defined(CONFIG_GENERIC_MLO)
+    //TODO: It is possible that instead channel setting is enough for reload ?
+    //TODO 2: Should this be set_ap instead called directly ?
+    if (ieee802_11_set_beacon(&interface->u.ap.hapd) != 0) {
+        wifi_hal_error_print("%s:%d: Failed to set beacon for interface: %s link id: %d\n",
+            __func__, __LINE__, first_interface_name,
+            first_interface->u.ap.hapd.mld_link_id);
+        return -1;
+    }
+#endif
 
     if (interface->vap_info.u.bss_info.enabled && radio->configured && radio->oper_param.enable) {
         wifi_hal_info_print("%s:%d: interface:%s enable ap\n", __func__, __LINE__, interface_name);
@@ -6062,66 +6064,18 @@ static int reload_single_vap_configuration(wifi_interface_info_t *interface)
 #ifdef CONFIG_GENERIC_MLO
 static int reload_mlo_vap_configuration(wifi_interface_info_t *interface)
 {
-
-    //MLO links share resources of the first link - always make sure to
-    //reload the first link. Necessary in case of moving first link to
-    //another.
-
+    //MLO links share some resources (i.e. RADIUS settings) of the first
+    //link - prepare this first.
     wifi_interface_info_t *first_interface = wifi_hal_get_first_mld_interface(interface);
     char *first_interface_name = wifi_hal_get_interface_name(first_interface);
     int first_interface_link_id = wifi_hal_get_mld_link_id(first_interface);
 
-    wifi_hal_info_print("%s:%d: interface:%s link id:%d reload hostapd config\n", __func__,
-        __LINE__, first_interface_name, first_interface_link_id);
-
-    pthread_mutex_lock(&g_wifi_hal.hapd_lock);
-    if (hostapd_reload_config(first_interface->u.ap.hapd.iface) < 0) {
-        wifi_hal_error_print("%s:%d: interface:%s link id:%d failed to reload VAP configuration\n",
-            __func__, __LINE__, first_interface_name, first_interface_link_id);
-        pthread_mutex_unlock(&g_wifi_hal.hapd_lock);
-        return -1;
-    }
-#ifdef CONFIG_SAE
-    if (first_interface->u.ap.conf.sae_groups != NULL) {
-        first_interface->u.ap.conf.sae_groups = NULL;
-    }
-#endif
-    pthread_mutex_unlock(&g_wifi_hal.hapd_lock);
-
-    /* Prevent hostap calling set_ap when client is removed due to VAP disable before
-     * start_bss */
-    first_interface->in_reconf = true;
-
-    wifi_hal_info_print("%s:%d: interface:%s link id:%d disable AP\n", __func__, __LINE__,
-        first_interface_name, first_interface_link_id);
-    nl80211_enable_ap(first_interface, false);
-    first_interface->bss_started = false;
-
-    wifi_hal_info_print("%s:%d: interface:%s link id:%d free hostapd data\n", __func__,
-        __LINE__, first_interface_name, first_interface_link_id);
-    pthread_mutex_lock(&g_wifi_hal.hapd_lock);
-    deinit_bss(&first_interface->u.ap.hapd);
-    if (first_interface->u.ap.hapd.conf->ssid.wpa_psk != NULL &&
-        first_interface->u.ap.hapd.conf->ssid.wpa_psk->next == NULL) {
-        hostapd_config_clear_wpa_psk(&first_interface->u.ap.hapd.conf->ssid.wpa_psk);
-    }
-    pthread_mutex_unlock(&g_wifi_hal.hapd_lock);
-
-    interface->beacon_set = 0;
+    reload_interface(first_interface);
 
     for (int i = g_wifi_hal.num_radios - 1; i >= 0; i--) {
         wifi_interface_info_t *interface_iter = NULL;
-        wifi_radio_info_t *radio = get_radio_by_rdk_index(i);
-
-        if (radio == NULL) {
-            wifi_hal_error_print("%s:%d: Failed to get radio for index:%d\n", __func__, __LINE__,
-                i);
-            continue;
-        }
 
         hash_map_foreach(radio->interface_map, interface_iter) {
-            char *interface_iter_name = wifi_hal_get_interface_name(interface_iter);
-            int interface_iter_link_id = wifi_hal_get_mld_link_id(interface_iter);
 
             if (!wifi_hal_is_mld_enabled(interface_iter)) {
                 continue;
@@ -6135,81 +6089,10 @@ static int reload_mlo_vap_configuration(wifi_interface_info_t *interface)
                 continue;
             }
 
-            wifi_hal_info_print("%s:%d: interface:%s link id:%d reload hostapd config\n", __func__,
-                __LINE__, interface_iter_name, interface_iter_link_id);
-
-            pthread_mutex_lock(&g_wifi_hal.hapd_lock);
-            if (hostapd_reload_config(interface_iter->u.ap.hapd.iface) < 0) {
-                wifi_hal_error_print("%s:%d: interface:%s link id:%d failed to reload VAP configuration\n",
-                    __func__, __LINE__, interface_iter_name, interface_iter_link_id);
-                pthread_mutex_unlock(&g_wifi_hal.hapd_lock);
-                return -1;
-            }
-#ifdef CONFIG_SAE
-            if (interface_iter->u.ap.conf.sae_groups != NULL) {
-                interface_iter->u.ap.conf.sae_groups = NULL;
-            }
-#endif
-            pthread_mutex_unlock(&g_wifi_hal.hapd_lock);
-
-            /* Prevent hostap calling set_ap when client is removed due to VAP disable before
-             * start_bss */
-            interface_iter->in_reconf = true;
-
-            wifi_hal_info_print("%s:%d: interface:%s link id:%d disable AP\n", __func__, __LINE__,
-                interface_iter_name, interface_iter_link_id);
-            nl80211_enable_ap(interface_iter, false);
-            interface_iter->bss_started = false;
-
-            wifi_hal_info_print("%s:%d: interface:%s link id:%d free hostapd data\n", __func__,
-                __LINE__, interface_iter_name, interface_iter_link_id);
-            pthread_mutex_lock(&g_wifi_hal.hapd_lock);
-            deinit_bss(&interface_iter->u.ap.hapd);
-            if (interface_iter->u.ap.hapd.conf->ssid.wpa_psk != NULL &&
-                interface_iter->u.ap.hapd.conf->ssid.wpa_psk->next == NULL) {
-                hostapd_config_clear_wpa_psk(&interface_iter->u.ap.hapd.conf->ssid.wpa_psk);
-            }
-            pthread_mutex_unlock(&g_wifi_hal.hapd_lock);
-        }
-
-            interface->beacon_set = 0;
+            reload_interface(interface_iter);
     }
 
-    wifi_hal_info_print("%s:%d: interface:%s link id:%d update hostapd params\n", __func__,
-        __LINE__, first_interface_name, first_interface_link_id);
-    if (update_hostap_interface_params(first_interface) < 0) {
-        wifi_hal_error_print("%s:%d: interface:%s link id:%d failed to update hostapd "
-                             "params\n",
-            __func__, __LINE__, first_interface_name, first_interface_link_id);
-        return -1;
-    }
-
-    first_interface->in_reconf = false;
-
-    wifi_radio_info_t *radio_of_first = get_radio_by_rdk_index(interface->rdk_radio_index);
-    if (radio_of_first == NULL) {
-        wifi_hal_info_print("%s:%d: BRAYAN interface:%s link id:%d radio is null\n", __func__,
-            __LINE__, first_interface_name, first_interface_link_id);
-    }
-
-    if (ieee802_11_set_beacon(&first_interface->u.ap.hapd) != 0) {
-        wifi_hal_error_print("%s:%d: Failed to set beacon for interface: %s link id: %d\n",
-            __func__, __LINE__, first_interface_name,
-            first_interface->u.ap.hapd.mld_link_id);
-        return -1;
-    }
-
-    if (first_interface->vap_info.u.bss_info.enabled && radio_of_first->configured &&
-        radio_of_first->oper_param.enable) {
-        wifi_hal_info_print("%s:%d: interface:%s link id:%d enable AP\n", __func__,
-            __LINE__, first_interface_name, first_interface_link_id);
-        if (start_bss(first_interface) < 0) {
-            wifi_hal_error_print("%s:%d: interface:%s link id:%d failed to start BSS\n",
-                __func__, __LINE__, first_interface_name, first_interface_link_id);
-            return -1;
-        }
-        first_interface->bss_started = true;
-    }
+    restart_interface(first_interface);
 
     for (unsigned int i = 0; i < g_wifi_hal.num_radios; i++) {
         wifi_interface_info_t *interface_iter = NULL;
@@ -6231,38 +6114,7 @@ static int reload_mlo_vap_configuration(wifi_interface_info_t *interface)
                 continue;
             }
 
-            interface_iter_name = wifi_hal_get_interface_name(interface_iter);
-            interface_iter_link_id = wifi_hal_get_mld_link_id(interface_iter);
-
-            wifi_hal_info_print("%s:%d: interface:%s link id:%d update hostapd params\n", __func__,
-                __LINE__, interface_iter_name, interface_iter_link_id);
-            if (update_hostap_interface_params(interface_iter) < 0) {
-                wifi_hal_error_print("%s:%d: interface:%s link id:%d failed to update hostapd "
-                                     "params\n",
-                    __func__, __LINE__, interface_iter_name, interface_iter_link_id);
-                return -1;
-            }
-
-            interface_iter->in_reconf = false;
-
-            if (ieee802_11_set_beacon(&interface_iter->u.ap.hapd) != 0) {
-                wifi_hal_error_print("%s:%d: Failed to set beacon for interface: %s link id: %d\n",
-                    __func__, __LINE__, interface_iter_name,
-                    interface_iter->u.ap.hapd.mld_link_id);
-                return -1;
-            }
-
-            if (interface->vap_info.u.bss_info.enabled && radio->configured &&
-                radio->oper_param.enable) {
-                wifi_hal_info_print("%s:%d: interface:%s link id:%d enable AP\n", __func__,
-                    __LINE__, interface_iter_name, interface_iter_link_id);
-                if (start_bss(interface_iter) < 0) {
-                    wifi_hal_error_print("%s:%d: interface:%s link id:%d failed to start BSS\n",
-                        __func__, __LINE__, interface_iter_name, interface_iter_link_id);
-                    return -1;
-                }
-                interface_iter->bss_started = true;
-            }
+            restart_interface(interface_iter);
         }
     }
 
@@ -6279,5 +6131,8 @@ int reload_vap_configuration(wifi_interface_info_t *interface)
     }
 #endif /* CONFIG_GENERIC_MLO */
 
-    return reload_single_vap_configuration(interface);
+    if (reload_interface(interface) != 0 && restart_interface(interface) != 0)
+        return -1;
+
+    return 0;
 }

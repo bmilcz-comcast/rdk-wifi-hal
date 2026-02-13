@@ -462,14 +462,6 @@ int platform_pre_create_vap(wifi_radio_index_t index, wifi_vap_info_map_t *map)
             return -1;
         }
 
-        /*if (wifi_hal_set_mld_link_id(interface, vap->u.bss_info.mld_info.common_info.mld_link_id) <
-            0) {
-            wifi_hal_error_print("Failed to set MLD link id %d on MLD id %d on VAP idx %d\n",
-                vap->u.bss_info.mld_info.common_info.mld_link_id,
-                vap->u.bss_info.mld_info.common_info.mld_id, vap->vap_index);
-            return -1;
-        }*/
-
         if_idx = if_nametoindex(mld_name);
         if (if_idx == 0) {
             wifi_hal_error_print("%s:%d: Failed to find interface %s for MLD setup\n", __func__,
@@ -1108,8 +1100,6 @@ static void remove_mld_from_array(struct hostapd_mld *mld)
 
 int dealloc_mld(wifi_interface_info_t *interface)
 {
-    wifi_hal_dbg_print("%s:%d BRAYAN Enter \n", __func__, __LINE__);
-
     struct hostapd_data *hapd;
     struct hostapd_mld **new_mld_array;
     hapd = &interface->u.ap.hapd;
