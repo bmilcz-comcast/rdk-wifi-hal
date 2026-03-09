@@ -788,6 +788,7 @@ INT wifi_hal_setRadioOperatingParameters(wifi_radio_index_t index, wifi_radio_op
     }
     memcpy((unsigned char *)old_operationParam, (unsigned char *)&radio->oper_param, sizeof(wifi_radio_operationParam_t));
 
+    wifi_hal_error_print("%s:%d: BRAYAN DEBUG PRINTS 1\n", __func__, __LINE__);
     nl80211_interface_enable(wifi_hal_get_interface_name(primary_interface),
         operationParam->enable);
 #if defined(TCXB8_PORT) || defined(XB10_PORT) || defined(SCXER10_PORT)
@@ -803,6 +804,8 @@ INT wifi_hal_setRadioOperatingParameters(wifi_radio_index_t index, wifi_radio_op
     if (radio->configured && radio->oper_param.enable != operationParam->enable) {
         memcpy((unsigned char *)&radio->oper_param, (unsigned char *)operationParam, sizeof(wifi_radio_operationParam_t));
 
+
+        wifi_hal_error_print("%s:%d: BRAYAN DEBUG PRINTS 2\n", __func__, __LINE__);
         if (update_hostap_config_params(radio) != RETURN_OK ) {
             wifi_hal_error_print("%s:%d:Failed to update hostap config params\n", __func__, __LINE__);
             free(old_operationParam);
@@ -819,6 +822,7 @@ INT wifi_hal_setRadioOperatingParameters(wifi_radio_index_t index, wifi_radio_op
         while (interface != NULL) {
             char *interface_name = wifi_hal_get_interface_name(interface);
 
+            wifi_hal_error_print("%s:%d: BRAYAN DEBUG PRINTS 3\n", __func__, __LINE__);
             if (interface->vap_info.vap_mode == wifi_vap_mode_ap) {
                 wifi_hal_info_print(
                     "%s:%d: vap_index: %d interface name: %s vap_initialized: %d "
@@ -827,7 +831,9 @@ INT wifi_hal_setRadioOperatingParameters(wifi_radio_index_t index, wifi_radio_op
                     interface->vap_initialized, interface->bss_started,
                     interface->vap_info.u.bss_info.enabled, radio->configured,
                     radio->oper_param.enable);
+
                 if (radio->oper_param.enable && interface->vap_info.u.bss_info.enabled) {
+                    wifi_hal_error_print("%s:%d: BRAYAN DEBUG PRINTS 4\n", __func__, __LINE__);
                     if (nl80211_interface_enable(interface_name, true) != 0) {
                         ret = nl80211_retry_interface_enable(interface, true);
                         if (ret != 0) {
@@ -845,8 +851,10 @@ INT wifi_hal_setRadioOperatingParameters(wifi_radio_index_t index, wifi_radio_op
                     interface->bss_started = true;
                 }
 
+                wifi_hal_error_print("%s:%d: BRAYAN DEBUG PRINTS 5\n", __func__, __LINE__);
                 if (radio->oper_param.enable == false && interface->bss_started) {
                     /* Clear beacon interval in wdev by stoping AP */
+                    wifi_hal_error_print("%s:%d: BRAYAN DEBUG PRINTS 6\n", __func__, __LINE__);
                     nl80211_interface_enable(interface_name, false);
                     nl80211_interface_enable(interface_name, true);
                     interface->beacon_set = 0;
@@ -895,6 +903,7 @@ INT wifi_hal_setRadioOperatingParameters(wifi_radio_index_t index, wifi_radio_op
         goto Exit;
     }
 
+    wifi_hal_error_print("%s:%d: BRAYAN DEBUG PRINTS 7\n", __func__, __LINE__);
 #ifdef CMXB7_PORT
     if( primary_interface->u.ap.iface.cac_started && ((operationParam->channel >= dfs_start_chan) && (operationParam->channel <= dfs_end_chan)) && (radio->oper_param.channel == operationParam->channel) &&
       ( radio->oper_param.channelWidth == operationParam->channelWidth ) ) {
@@ -917,6 +926,7 @@ INT wifi_hal_setRadioOperatingParameters(wifi_radio_index_t index, wifi_radio_op
     if (radio->oper_param.DfsEnabled != operationParam->DfsEnabled) {
         platform_set_dfs_t platform_set_dfs_fn = get_platform_dfs_set_fn();
 
+        wifi_hal_error_print("%s:%d: BRAYAN DEBUG PRINTS 8\n", __func__, __LINE__);
         if (platform_set_dfs_fn != NULL) {
             platform_set_dfs_fn(index, operationParam);
         }
@@ -925,6 +935,7 @@ INT wifi_hal_setRadioOperatingParameters(wifi_radio_index_t index, wifi_radio_op
     is_channel_changed = radio->oper_param.channel != operationParam->channel ||
         radio->oper_param.channelWidth != operationParam->channelWidth;
     if (radio->configured && radio->oper_param.enable && is_channel_changed) {
+        wifi_hal_error_print("%s:%d: BRAYAN DEBUG PRINTS 9\n", __func__, __LINE__);
         radio->oper_param.channel = operationParam->channel;
         radio->oper_param.operatingClass = operationParam->operatingClass;
         radio->oper_param.channelWidth = operationParam->channelWidth;
@@ -973,6 +984,8 @@ INT wifi_hal_setRadioOperatingParameters(wifi_radio_index_t index, wifi_radio_op
             }
         }
 #endif
+
+        wifi_hal_error_print("%s:%d: BRAYAN DEBUG PRINTS 10\n", __func__, __LINE__);
         if (memcmp((unsigned char *)&radio->oper_param, (unsigned char *)operationParam, sizeof(wifi_radio_operationParam_t)) == 0) {
             if (is_channel_changed) {
                 wifi_hal_dbg_print("%s:%d: Switch channel on radio index:%d\n", __func__, __LINE__,
@@ -1000,30 +1013,39 @@ INT wifi_hal_setRadioOperatingParameters(wifi_radio_index_t index, wifi_radio_op
     }
 
 try_hostap_config_update:
+
+    wifi_hal_error_print("%s:%d: BRAYAN DEBUG PRINTS 11\n", __func__, __LINE__);
     if (radio->configured && is_channel_changed) {
         radio->configuration_in_progress = true;
     }
+    /*  TODO: THIS IS A TEST
     if (radio->configured && radio->oper_param.enable) {
+        wifi_hal_error_print("%s:%d: BRAYAN DEBUG PRINTS 12\n", __func__, __LINE__);
         update_hostap_radio_param(radio, operationParam);
-    }
+    }*/
 
     if (radio->oper_param.countryCode != operationParam->countryCode) {
+        wifi_hal_error_print("%s:%d: BRAYAN DEBUG PRINTS 13\n", __func__, __LINE__);
         wifi_hal_dbg_print("%s:%d:Set country code:%d\n", __func__, __LINE__, operationParam->countryCode);
         nl80211_set_regulatory_domain(operationParam->countryCode);
     }
 
     memcpy((unsigned char *)&radio->oper_param, (unsigned char *)operationParam, sizeof(wifi_radio_operationParam_t));
     // update the hostap_config parameters
+
+    wifi_hal_error_print("%s:%d: BRAYAN DEBUG PRINTS 14\n", __func__, __LINE__);
     if (update_hostap_config_params(radio) != RETURN_OK ) {
         wifi_hal_error_print("%s:%d:Failed to update hostap config params\n", __func__, __LINE__);
         goto reload_config;
     }
 
+    wifi_hal_error_print("%s:%d: BRAYAN DEBUG PRINTS 15\n", __func__, __LINE__);
     if (nl80211_update_wiphy(radio) != 0) {
         wifi_hal_error_print("%s:%d:Failed to update radio\n", __func__, __LINE__);
         goto reload_config;
     }
 
+    wifi_hal_error_print("%s:%d: BRAYAN DEBUG PRINTS 16\n", __func__, __LINE__);
 #if !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_BANANAPI_R4_)
     // Call Vendor HAL
     if (wifi_setRadioDfsAtBootUpEnable(index,operationParam->DfsEnabledBootup) != 0) {

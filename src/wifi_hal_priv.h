@@ -278,6 +278,10 @@ typedef struct {
 #define unlikely(x) (x)
 #endif
 
+#define container_of(ptr, type, member) ({                      \
+        const typeof( ((type *)0)->member ) *__mptr = (ptr);    \
+        (type *)( (char *)__mptr - offsetof(type,member) );})
+
 extern const struct wpa_driver_ops g_wpa_driver_nl80211_ops;
 #ifdef CONFIG_WIFI_EMULATOR
 extern const struct wpa_driver_ops g_wpa_supplicant_driver_nl80211_ops;
@@ -1251,6 +1255,10 @@ struct wpa_ssid *get_wifi_wpa_current_ssid(wifi_interface_info_t *interface);
 #define NL80211_DRV_LINK_ID_NA (-1)
 #endif
 
+#ifndef MLD_ID_NA
+#define MLD_ID_NA 255
+#endif
+
 #ifdef CONFIG_IEEE80211BE
 int nl80211_drv_mlo_msg(struct nl_msg *msg, struct nl_msg **msg_mlo, void *priv,
     struct wpa_driver_ap_params *params);
@@ -1502,4 +1510,11 @@ unsigned int get_band_info_from_rdk_radio_index(unsigned int rdk_radio_index);
 int get_backhaul_sta_ifname_from_radio_index(wifi_radio_index_t index, char *ifname_out,
     size_t ifname_out_len);
 int reload_vap_configuration(wifi_interface_info_t *interface);
+int reload_interface(wifi_interface_info_t *interface);
+int restart_interface(wifi_interface_info_t *interface);
+#ifdef CONFIG_GENERIC_MLO
+int teardown_mlo_vap(wifi_interface_info_t *interface);
+int setup_mlo_vap(wifi_interface_info_t *interface, wifi_vap_info_t *new_vap_config);
+#endif
+
 #endif // WIFI_HAL_PRIV_H

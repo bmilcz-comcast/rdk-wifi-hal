@@ -3319,6 +3319,7 @@ int start_bss(wifi_interface_info_t *interface)
     //iconf = hapd->iconf;
     //iface = hapd->iface;
 
+    wifi_hal_dbg_print("%s:%d:BRAYAN - LINK ID ON HOSTAP %d, ON INTERFACE %d\n", __func__, __LINE__, hapd->mld_link_id, interface->vap_info.u.bss_info.mld_info.common_info.mld_link_id);
     wifi_hal_dbg_print("%s:%d:ssid info ssid len:%zu\n", __func__, __LINE__, conf->ssid.ssid_len);
     if (interface->u.ap.hapd.csa_in_progress == true) {
         hostapd_cleanup_cs_params(&interface->u.ap.hapd);
