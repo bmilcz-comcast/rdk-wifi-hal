@@ -276,6 +276,10 @@ typedef struct {
 #define unlikely(x) (x)
 #endif
 
+#define container_of(ptr, type, member) ({                      \
+        const typeof( ((type *)0)->member ) *__mptr = (ptr);    \
+        (type *)( (char *)__mptr - offsetof(type,member) );})
+
 extern const struct wpa_driver_ops g_wpa_driver_nl80211_ops;
 #ifdef CONFIG_WIFI_EMULATOR
 extern const struct wpa_driver_ops g_wpa_supplicant_driver_nl80211_ops;
@@ -1106,7 +1110,6 @@ int convert_enum_beaconrate_to_int(wifi_bitrate_t rates);
 int get_op_class_from_radio_params(wifi_radio_operationParam_t *param);
 void wifi_send_wpa_supplicant_event(int ap_index, uint8_t *frame, int len);
 int wifi_send_response_failure(int ap_index, const u8 *mac, int frame_type, int status_code, int rssi);
-wifi_interface_info_t* get_primary_interface(wifi_radio_info_t *radio);
 int nl80211_disconnect_sta(wifi_interface_info_t *interface);
 int wifi_hal_purgeScanResult(unsigned int vap_index, unsigned char *sta_mac);
 void get_wifi_interface_info_map(wifi_interface_name_idex_map_t *interface_map);
@@ -1233,6 +1236,10 @@ struct wpa_ssid *get_wifi_wpa_current_ssid(wifi_interface_info_t *interface);
 
 #ifndef NL80211_DRV_LINK_ID_NA
 #define NL80211_DRV_LINK_ID_NA (-1)
+#endif
+
+#ifndef MLD_ID_NA
+#define MLD_ID_NA 255
 #endif
 
 #ifdef CONFIG_IEEE80211BE
@@ -1493,4 +1500,12 @@ unsigned int get_band_info_from_rdk_radio_index(unsigned int rdk_radio_index);
 int get_backhaul_sta_ifname_from_radio_index(wifi_radio_index_t index, char *ifname_out,
     size_t ifname_out_len);
 int reload_vap_configuration(wifi_interface_info_t *interface);
+int reload_interface(wifi_interface_info_t *interface);
+int restart_interface(wifi_interface_info_t *interface);
+#ifdef CONFIG_GENERIC_MLO
+int teardown_mlo_vap(wifi_interface_info_t *interface);
+int setup_mlo_vap(wifi_interface_info_t *interface, wifi_vap_info_t *new_vap_config);
+int alloc_mld(wifi_interface_info_t *interface);
+#endif
+
 #endif // WIFI_HAL_PRIV_H
