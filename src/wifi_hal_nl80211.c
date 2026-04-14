@@ -776,10 +776,12 @@ static bool is_probe_req_to_our_ssid(struct ieee80211_mgmt *mgmt, unsigned int l
     int ret;
 
     if (memcmp(mgmt->da, interface->mac, sizeof(mac_address_t)) == 0) {
+        wifi_hal_info_print("%s:%d: BRAYAN MAC directly to us, ret true\n", __func__, __LINE__);
         return true;
     }
 
     if (len < IEEE80211_HDRLEN) {
+        wifi_hal_info_print("%s:%d: BRAYAN bad len\n", __func__, __LINE__);
         return false;
     }
 
@@ -788,16 +790,19 @@ static bool is_probe_req_to_our_ssid(struct ieee80211_mgmt *mgmt, unsigned int l
 
     ie = get_ie(ie, ie_len, WLAN_EID_SSID);
     if (ie == NULL) {
+        wifi_hal_info_print("%s:%d: BRAYAN no ssid ie\n", __func__, __LINE__);
         return false;
     }
 
     ssid_len = ie[1];
     if (ssid_len == 0 || ssid_len > SSID_MAX_LEN) {
+        wifi_hal_info_print("%s:%d: BRAYAN ssid len 0 or too large\n", __func__, __LINE__);
         return false;
     }
 
     pthread_mutex_lock(&g_wifi_hal.hapd_lock);
     if (ssid_len != interface->u.ap.hapd.conf->ssid.ssid_len) {
+        wifi_hal_info_print("%s:%d: BRAYAN ssid len 0 or too large IN OUR CONF\n", __func__, __LINE__);
         pthread_mutex_unlock(&g_wifi_hal.hapd_lock);
         return false;
     }
@@ -806,6 +811,8 @@ static bool is_probe_req_to_our_ssid(struct ieee80211_mgmt *mgmt, unsigned int l
 
     ret = strncmp(ssid, interface->u.ap.hapd.conf->ssid.ssid, ssid_len) == 0;
     pthread_mutex_unlock(&g_wifi_hal.hapd_lock);
+
+    wifi_hal_info_print("%s:%d: BRAYAN returning %d\n", __func__, __LINE__, ret);
 
     return ret;
 }
@@ -2064,7 +2071,8 @@ int process_frame_mgmt(wifi_interface_info_t *interface, struct ieee80211_mgmt *
 
     case WLAN_FC_STYPE_PROBE_REQ:
         mgmt_type = WIFI_MGMT_FRAME_TYPE_PROBE_REQ;
-        //wifi_hal_dbg_print("%s:%d: Received probe req frame on interface:%s from the sta : %s and the phy_rate:%d\n", __func__, __LINE__,interface->name,to_mac_str(sta, sta_mac_str),phy_rate);
+        wifi_hal_dbg_print("%s:%d: BRAYAN Received probe req frame on interface:%s from the sta : %s\n", __func__, __LINE__,interface->name,to_mac_str(sta, sta_mac_str));
+        wifi_hal_dbg_print("%s:%d: BRAYAN da_addr: %s\n", __func__, __LINE__, to_mac_str(mgmt->da, frame_da_str));
 
         if (callbacks->steering_event_callback != 0) {
             handle_probe_req_event_for_bm(interface, mgmt, len, sta, sig_dbm);
