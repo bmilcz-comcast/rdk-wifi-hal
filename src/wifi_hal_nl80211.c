@@ -2406,7 +2406,11 @@ int process_frame_mgmt(wifi_interface_info_t *interface, struct ieee80211_mgmt *
             mgmt_frame.sig_dbm = sig_dbm;
             mgmt_frame.len = len;
             mgmt_frame.data = (unsigned char *)mgmt;
+            mgmt_frame.phy_rate = phy_rate;
+            mgmt_frame.recv_freq = recv_freq;
 
+            //Delay assoc frame delivery until get_sta_handler
+            if (stype != WLAN_FC_STYPE_ASSOC_REQ) {
 #ifdef WIFI_HAL_VERSION_3_PHASE2
         callbacks->mgmt_frame_rx_callback(vap->vap_index, &mgmt_frame, recv_freq);
 #else
@@ -2418,7 +2422,9 @@ int process_frame_mgmt(wifi_interface_info_t *interface, struct ieee80211_mgmt *
         callbacks->mgmt_frame_rx_callback(vap->vap_index, sta, (unsigned char *)mgmt, len, mgmt_type, dir, recv_freq);
 #endif
 #endif
-
+            } else {
+                hash_map_put(g_wifi_hal.assoc_frames_map, sta_mac_str, (void *)&mgmt_frame);
+            }
         for (unsigned int i = 0; i < hooks->num_hooks; i++) {
             if (hooks->frame_hooks_fn[i](vap->vap_index, mgmt_type) == NL_SKIP) {
                 return -1;
@@ -6746,7 +6752,9 @@ static int get_sta_handler(struct nl_msg *msg, void *arg)
     struct sta_info *sta = NULL;
     bool has_link_stats = false;
 #endif /* HOSTAPD_VERSION >= 211 && CONFIG_IEEE80211BE */
+    wifi_device_callbacks_t * callbacks;
 
+    callbacks = get_hal_device_callbacks();
     interface = (wifi_interface_info_t *)arg;
 
     memset(&associated_dev, 0, sizeof(associated_dev));
@@ -6896,9 +6904,15 @@ static int get_sta_handler(struct nl_msg *msg, void *arg)
             associated_dev.cli_MLDInfo.cli_LinkInfo[link_idx].cli_LinkID = link_id;
             associated_dev.cli_MLDInfo.cli_LinkInfo[link_idx].cli_RSSI = rssi;
             associated_dev.cli_MLDInfo.cli_LinkInfo[link_idx].cli_Valid = true;
+            memcpy(associated_dev.cli_MLDInfo.cli_LinkInfo[link_idx].cli_LinkMACAddress,
+                link->peer_addr, sizeof(mac_address_t));
+            mac_addr_str_t link_peer_mac_str;
+            to_mac_str(link->peer_addr, link_peer_mac_str);
+            wifi_hal_info_print("%s:%d: MAC addr for link is %s\n", __func__, __LINE__, link_peer_mac_str);
             link_idx++;
             has_link_stats = true;
         }
+        associated_dev.cli_MLDInfo.cli_staLinkCount = link_idx;
     }
 
     if (associated_dev.cli_MLDInfo.cli_MLDSta == true && has_link_stats == true) {
@@ -6933,6 +6947,36 @@ static int get_sta_handler(struct nl_msg *msg, void *arg)
 
     notify_sta_listeners(interface, &associated_dev);
 
+    wifi_frame_t *mgmt_frame = hash_map_remove(g_wifi_hal.assoc_frames_map, sta_mac_str);
+    if (mgmt_frame == NULL) {
+        wifi_hal_info_print("%s:%d: No management frame found for " MACSTR "\n", __func__, __LINE__,
+            MAC2STR(associated_dev.cli_MACAddress));
+    } else {
+#ifdef WIFI_HAL_VERSION_3_PHASE2
+    callbacks->mgmt_frame_rx_callback(mgmt_frame->ap_index, mgmt_frame, mgmt_frame->recv_freq);
+#else
+#if defined(RDK_ONEWIFI) && (defined(TCXB7_PORT) || defined(CMXB7_PORT) || defined(TCXB8_PORT) || \
+    defined(XB10_PORT) || defined(TCHCBRV2_PORT) || defined(SCXER10_PORT) || defined(VNTXER5_PORT) || \
+    defined(TARGET_GEMINI7_2) || defined(SCXF10_PORT) || defined(RDKB_ONE_WIFI_PROD))
+    callbacks->mgmt_frame_rx_callback(mgmt_frame->ap_index,
+        mgmt_frame->sta_mac,
+        (unsigned char *)mgmt_frame->data,
+        mgmt_frame->len, mgmt_frame->type,
+        mgmt_frame->dir,
+        mgmt_frame->sig_dbm,
+        mgmt_frame->phy_rate,
+        mgmt_frame->recv_freq);
+#else
+    callbacks->mgmt_frame_rx_callback(mgmt_frame->ap_index,
+        mgmt_frame->sta_mac,
+        (unsigned char *)mgmt_frame->data,
+        mgmt_frame->len,
+        mgmt_frame->type,
+        mgmt_frame->dir,
+        mgmt_frame->recv_freq);
+#endif
+#endif
+    }
     return NL_SKIP;
 }
 

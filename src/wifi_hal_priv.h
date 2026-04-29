@@ -683,6 +683,7 @@ typedef struct {
 #endif
     int ignite_sta_sock_fd;
     int ignite_sta_sock_fd_count;
+    hash_map_t *assoc_frames_map;
 } wifi_hal_priv_t;
 
 extern wifi_hal_priv_t g_wifi_hal;

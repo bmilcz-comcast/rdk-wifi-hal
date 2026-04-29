@@ -566,6 +566,12 @@ INT wifi_hal_init()
 #endif
     wifi_hal_info_print("%s:%d: done\n", __func__, __LINE__);
 
+    g_wifi_hal.assoc_frames_map = hash_map_create();
+    if (g_wifi_hal.assoc_frames_map == NULL) {
+        wifi_hal_error_print("%s:%d: Failed to create assoc_frames_map\n", __func__, __LINE__);
+        return -1;
+    }
+
     return RETURN_OK;
 }
 
