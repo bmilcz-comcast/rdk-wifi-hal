@@ -6896,6 +6896,9 @@ static int get_sta_handler(struct nl_msg *msg, void *arg)
             associated_dev.cli_MLDInfo.cli_LinkInfo[link_idx].cli_LinkID = link_id;
             associated_dev.cli_MLDInfo.cli_LinkInfo[link_idx].cli_RSSI = rssi;
             associated_dev.cli_MLDInfo.cli_LinkInfo[link_idx].cli_Valid = true;
+            mac_addr_str_t link_peer_mac_str;
+            to_mac_str(link->peer_addr, link_peer_mac_str);
+            wifi_hal_info_print("%s:%d: MAC addr for link is %s\n", __func__, __LINE__, link_peer_mac_str);
             link_idx++;
             has_link_stats = true;
         }
