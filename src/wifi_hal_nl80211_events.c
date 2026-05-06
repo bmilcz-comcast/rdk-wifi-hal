@@ -1179,6 +1179,7 @@ static void nl80211_ch_switch_notify_event(wifi_interface_info_t *interface, str
     }
 #endif
 
+
     if ((callbacks != NULL) && (callbacks->channel_change_event_callback) && !(radio_channel_param.sub_event == WIFI_EVENT_RADAR_NOP_FINISHED)) {
         radio_channel_param.radioIndex = interface->vap_info.radio_index;
         radio_channel_param.event = wifi_chan_event_type;
@@ -1882,12 +1883,13 @@ int process_global_nl80211_event(struct nl_msg *msg, void *arg)
     interface = get_interface_by_if_index(ifidx, link_id);
     switch (gnlh->cmd) {
     case NL80211_CMD_RADAR_DETECT:
-        // To handle CAC Finish and CAC Abort for DFS. These event involve only the primary
-        // interface of the radio.
-        if (!(event_type == NL80211_RADAR_CAC_FINISHED || event_type == NL80211_RADAR_CAC_ABORTED))
-            break;
+           // To handle CAC Finish and CAC Abort for DFS. These event involve only the primary
+           // interface of the radio.
+           if (!(event_type == NL80211_RADAR_CAC_FINISHED || event_type == NL80211_RADAR_CAC_ABORTED))
+           break;
 
-        /* fall through */
+            /* fall through */
+
     case NL80211_CMD_NEW_SCAN_RESULTS:
     case NL80211_CMD_TRIGGER_SCAN:
     case NL80211_CMD_SCAN_ABORTED:
