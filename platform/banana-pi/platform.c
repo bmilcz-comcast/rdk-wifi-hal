@@ -406,7 +406,31 @@ static int teardown_mlo_vap(wifi_interface_info_t *interface)
 
 static int setup_mlo_vap(wifi_interface_info_t *interface, wifi_vap_info_t *new_vap_config)
 {
-    unsigned int if_idx;
+    unsigned int if_idx = 0;
+    char *mld_name = NULL;
+    mac_address_t mld_mac = { 0 };
+
+    mld_name = wifi_hal_get_mld_name_by_interface_name(interface->name);
+    if (mld_name == NULL) {
+        wifi_hal_error_print(
+            "%s:%d: MLD interface is enabled, but interface name is unset - skipping\n",
+            __func__, __LINE__);
+        return -1;
+    }
+
+    strncpy(interface->mld_name, mld_name, sizeof(interface->mld_name) - 1);
+    if (wifi_hal_get_mac_address(mld_name, mld_mac) < 0) {
+        wifi_hal_error_print("%s:%d: Failed to get MAC address for interface %s\n",
+            __func__, __LINE__, mld_name);
+        return -1;
+    }
+
+    if (wifi_hal_set_mld_mac_address(interface, mld_mac) < 0) {
+        wifi_hal_error_print("%s: %d: Failed to set MAC on MLD id %d on VAP idx %d\n",
+            __func__, __LINE__, new_vap_config->u.bss_info.mld_info.common_info.mld_id,
+            new_vap_config->vap_index);
+        return -1;
+    }
 
     if (wifi_hal_set_mld_enabled(interface, true) < 0) {
         wifi_hal_error_print("%s:%d: Failed to set mld_enable:%d on VAP idx %d\n", __func__,
@@ -472,9 +496,6 @@ int platform_pre_create_vap(wifi_radio_index_t index, wifi_vap_info_map_t *map)
     wifi_vap_info_t *vap = NULL;
     wifi_interface_info_t *interface = NULL;
 
-    char *mld_name = NULL;
-    mac_address_t mld_mac = { 0 };
-
     wifi_hal_dbg_print("%s:%d \n",__func__,__LINE__);
 
     if (map == NULL)
@@ -514,52 +535,6 @@ int platform_pre_create_vap(wifi_radio_index_t index, wifi_vap_info_map_t *map)
         }
 
 #ifdef CONFIG_GENERIC_MLO
-        // TODO: resolve wifi-hal driven changes
-        // Because of DML cache, even if we update those values, the DML
-        // cache used with i.e. TR-181 stays the same and will keep
-        // trying to push it's cached values on us as we have no means to
-        // update it. We need to either:
-        //- force cache to resync with db after change, as db has proper
-        // values
-        //- have a feedback mechanism, i.e. a callback for DML to fetch
-        // the VAP status and do the updates
-        if (interface->u.ap.hapd.mld != NULL) {
-            interface->vap_info.u.bss_info.mld_info.common_info.mld_link_id =
-                interface->u.ap.hapd.mld_link_id;
-            vap->u.bss_info.mld_info.common_info.mld_link_id = interface->u.ap.hapd.mld_link_id;
-            wifi_hal_info_print("%s:%d: interface:%s link id:%d\n", __func__, __LINE__,
-                interface->name, wifi_hal_get_mld_link_id(interface));
-        }
-
-        mld_name = wifi_hal_get_mld_name_by_interface_name(interface->name);
-        if (mld_name == NULL) {
-            wifi_hal_error_print(
-                "%s:%d: MLD interface is enabled, but interface name is unset - skipping\n",
-                __func__, __LINE__);
-            return -1;
-        }
-
-        if (vap->u.bss_info.mld_info.common_info.mld_enable) {
-            strncpy(interface->mld_name, mld_name, sizeof(interface->mld_name) - 1);
-            if (wifi_hal_get_mac_address(mld_name, mld_mac) < 0) {
-                wifi_hal_error_print("%s:%d: Failed to get MAC address for interface %s\n",
-                    __func__, __LINE__, mld_name);
-                return -1;
-            }
-
-            if (wifi_hal_set_mld_mac_address(interface, mld_mac) < 0) {
-                wifi_hal_error_print("%s: %d: Failed to set MAC on MLD id %d on VAP idx %d\n",
-                    __func__, __LINE__, vap->u.bss_info.mld_info.common_info.mld_id,
-                    vap->vap_index);
-                return -1;
-            }
-
-            // This is feedback info to datamodel on MLD address.
-            memcpy(vap->u.bss_info.mld_info.common_info.mld_addr,
-                interface->vap_info.u.bss_info.mld_info.common_info.mld_addr,
-                sizeof(vap->u.bss_info.mld_info.common_info.mld_addr));
-        }
-
         if (has_config_changed(&interface->vap_info, vap) == false) {
             continue;
         }
@@ -575,9 +550,7 @@ int platform_pre_create_vap(wifi_radio_index_t index, wifi_vap_info_map_t *map)
 
             // Set link_id to NA in DML
             vap->u.bss_info.mld_info.common_info.mld_link_id = NL80211_DRV_LINK_ID_NA;
-            interface->vap_info.u.bss_info.mld_info.common_info.mld_link_id =
-                NL80211_DRV_LINK_ID_NA;
-
+            interface->vap_info.u.bss_info.mld_info.common_info.mld_link_id = NL80211_DRV_LINK_ID_NA;
             continue;
         } else {
             if (setup_mlo_vap(interface, vap) != 0) {
@@ -587,6 +560,12 @@ int platform_pre_create_vap(wifi_radio_index_t index, wifi_vap_info_map_t *map)
                 return -1;
             }
         }
+
+        // This is feedback info to datamodel on MLD address
+        memcpy(vap->u.bss_info.mld_info.common_info.mld_addr,
+            interface->vap_info.u.bss_info.mld_info.common_info.mld_addr,
+            sizeof(vap->u.bss_info.mld_info.common_info.mld_addr));
+
     }
 #endif // CONFIG_GENERIC_MLO
     return 0;
@@ -1291,7 +1270,7 @@ int dealloc_mld(wifi_interface_info_t *interface)
 int update_hostap_mlo(wifi_interface_info_t *interface)
 {
 #if (HOSTAPD_VERSION >= 211)
-    struct hostapd_bss_config *conf;
+    struct hostapd_bss_config *conf = NULL;
     struct hostapd_data *hapd, *first_link, *link_bss;
 
     if (!interface->vap_info.u.bss_info.enabled) {
