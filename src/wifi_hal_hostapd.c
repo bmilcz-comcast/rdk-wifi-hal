@@ -3341,6 +3341,19 @@ int start_bss(wifi_interface_info_t *interface)
 #endif
 #endif
 #endif /* CONFIG_GENERIC_MLO */
+#ifdef CONFIG_GENERIC_MLO
+    //For making the beacon broadcast
+    if (wifi_hal_is_mld_enabled(interface)) {
+        for_each_mld_link(link_bss, hapd) {
+            if (ieee802_11_set_beacon(link_bss) != 0) {
+                wifi_hal_error_print("%s:%d: Failed to set beacon for interface: %s link id: %d\n",
+                    __func__, __LINE__, wifi_hal_get_interface_name(interface),
+                    link_bss->mld_link_id);
+                return -1;
+            }
+        }
+    }
+#endif
     pthread_mutex_unlock(&g_wifi_hal.hapd_lock);
 
     return ret;

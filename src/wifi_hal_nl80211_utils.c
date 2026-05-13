@@ -6184,18 +6184,6 @@ static int restart_interface(wifi_interface_info_t *interface)
         interface->bss_started = true;
     }
 
-#if defined(CONFIG_GENERIC_MLO) && defined(_PLATFORM_BANANAPI_R4_)
-    if (wifi_hal_is_mld_enabled(interface)) {
-        // Deinit will cause removal of beacon - set it again before
-        // start_bss to enable broadcasting for BPi
-        if (ieee802_11_set_beacon(&interface->u.ap.hapd) != 0) {
-            wifi_hal_error_print("%s:%d: Failed to set beacon for interface: %s link id: %d\n",
-                __func__, __LINE__, interface_name, interface->u.ap.hapd.mld_link_id);
-            return -1;
-        }
-    }
-#endif
-
     return 0;
 }
 

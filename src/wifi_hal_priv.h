@@ -64,6 +64,7 @@
 #include "wifi_hal_wnm_rrm.h"
 #include "collection.h"
 #include "driver.h"
+#include "list.h"
 
 #if defined(CONFIG_WIFI_EMULATOR) || defined(BANANA_PI_PORT)
 #include "wpa_supplicant_i.h"
@@ -661,6 +662,16 @@ typedef struct wifi_hal_rate_limit {
     int cooldown_time;
 } wifi_hal_mgt_frame_rate_limit_t;
 
+typedef struct wifi_mld_unit {
+    struct dl_list mld_unit;
+    struct hostapd_mld *mld;
+} wifi_mld_unit_t;
+
+typedef struct wifi_mld_array {
+    unsigned int mld_count;
+    struct dl_list mld_unit;
+} wifi_mld_array_t;
+
 typedef struct {
     pthread_t nl_tid;
     pthread_t hapd_eloop_tid;
@@ -693,8 +704,7 @@ typedef struct {
     hash_map_t *mgt_frame_rate_limit_hashmap;
     wifi_hal_mgt_frame_rate_limit_t mgt_frame_rate_limit;
 #ifdef CONFIG_GENERIC_MLO
-    unsigned int mld_count;
-    struct hostapd_mld **mld_array;
+    wifi_mld_array_t mld_array;
 #endif
     int ignite_sta_sock_fd;
     int ignite_sta_sock_fd_count;

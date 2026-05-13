@@ -1604,13 +1604,6 @@ INT wifi_hal_createVAP(wifi_radio_index_t index, wifi_vap_info_map_t *map)
                 return RETURN_ERR;
             }
 
-#ifdef CONFIG_GENERIC_MLO
-            // TODO: We need better way in case of updating from
-            // rdk-wifi-hal to OneWifi
-            // Update the link id back in datamodel
-            vap->u.bss_info.mld_info.common_info.mld_link_id = interface->u.ap.hapd.mld_link_id;
-#endif
-
             wifi_hal_info_print("%s:%d: interface:%s vap_initialized:%d\n", __func__, __LINE__,
                 interface_name, interface->vap_initialized);
             if (interface->vap_initialized == true) {
@@ -1666,10 +1659,11 @@ INT wifi_hal_createVAP(wifi_radio_index_t index, wifi_vap_info_map_t *map)
             if (mbssid_tx_interface != NULL && mbssid_tx_interface != interface) {
                 wifi_hal_configure_mbssid(radio);
             }
+
+            //TODO: Check if we can get rid of this.
 #ifdef CONFIG_GENERIC_MLO
             // For any change done to MLD group, reload.
             // This has to be done here as at pre_create we:
-            // - do not have yet link in the driver (update_hostap_mlo)
             // - below assumes that BSS is currently started and
             // operational, which is not the case after preinitializing
             // some fields in pre_create
