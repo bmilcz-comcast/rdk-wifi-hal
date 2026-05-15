@@ -3305,8 +3305,9 @@ void deinit_bss(struct hostapd_data *hapd)
 int start_bss(wifi_interface_info_t *interface)
 {
     int ret;
-    struct hostapd_data     *hapd;
-    struct hostapd_bss_config *conf;
+    struct hostapd_data     *hapd = NULL;
+    struct hostapd_data     *link_bss = NULL;
+    struct hostapd_bss_config *conf = NULL;
     //struct hostapd_iface *iface;
     //struct hostapd_config *iconf;
     wifi_vap_info_t *vap = &interface->vap_info;

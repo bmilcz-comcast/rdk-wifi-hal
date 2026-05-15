@@ -1660,18 +1660,6 @@ INT wifi_hal_createVAP(wifi_radio_index_t index, wifi_vap_info_map_t *map)
                 wifi_hal_configure_mbssid(radio);
             }
 
-            //TODO: Check if we can get rid of this.
-#ifdef CONFIG_GENERIC_MLO
-            // For any change done to MLD group, reload.
-            // This has to be done here as at pre_create we:
-            // - below assumes that BSS is currently started and
-            // operational, which is not the case after preinitializing
-            // some fields in pre_create
-            if (wifi_hal_is_mld_enabled(interface) && vap->u.bss_info.enabled) {
-                reload_vap_configuration(interface);
-            }
-#endif
-
         } else if (vap->vap_mode == wifi_vap_mode_sta) {
 #if defined(CONFIG_WIFI_EMULATOR)
             if (nl80211_create_bridge(interface_name, vap->bridge_name) != 0) {

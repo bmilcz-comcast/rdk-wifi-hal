@@ -46,9 +46,6 @@
 
 int wifi_nvram_defaultRead(char *in,char *out);
 int _syscmd(char *cmd, char *retBuf, int retBufSize);
-int dealloc_mld(wifi_interface_info_t *interface);
-int alloc_mld(wifi_interface_info_t *interface);
-bool wifi_hal_is_mld_link_exists(struct hostapd_data *hapd);
 
 typedef struct {
     mac_address_t *macs;
@@ -258,6 +255,142 @@ static bool has_config_changed(wifi_vap_info_t *current_config, wifi_vap_info_t 
     return ((current_config->u.bss_info.mld_info.common_info.mld_enable !=
                 new_config->u.bss_info.mld_info.common_info.mld_enable) ||
         (current_config->u.bss_info.enabled != new_config->u.bss_info.enabled));
+}
+
+static struct hostapd_mld *find_mld(struct wifi_interface_info_t *interface)
+{
+    wifi_mld_unit_t *mld_it = NULL;
+    dl_list_for_each(mld_it, &g_wifi_hal.mld_array.mld_unit, wifi_mld_unit_t, mld_unit)
+    {
+        if (strncmp(interface->mld_name, mld_it->mld->name, sizeof(mld_it->mld->name)) == 0) {
+            return mld_it->mld;
+        }
+    }
+
+    return NULL;
+}
+
+static bool wifi_hal_is_mld_link_exists(struct hostapd_data *hapd)
+{
+    struct hostapd_data *link_bss;
+
+    if (hapd->mld == NULL) {
+        return false;
+    }
+
+    dl_list_for_each(link_bss, &hapd->mld->links, struct hostapd_data, link) {
+        if (link_bss == hapd) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+int alloc_mld(wifi_interface_info_t *interface)
+{
+    struct hostapd_mld *mld;
+    struct hostapd_data *hapd = &interface->u.ap.hapd;
+
+    wifi_mld_unit_t *mld_unit = NULL;
+
+    if (g_wifi_hal.mld_array.mld_count == 0) {
+        dl_list_init(&g_wifi_hal.mld_array.mld_unit);
+    } else {
+        mld = find_mld(interface);
+        if (mld != NULL) {
+            wifi_hal_dbg_print("%s:%d hapd->mld was found for interface %s\n", __func__, __LINE__,
+                interface->name);
+            hapd->mld = mld;
+            mld->refcount++;
+            return 0;
+        }
+    }
+
+    mld_unit = calloc(1, sizeof(wifi_mld_unit_t));
+    if (mld_unit == NULL) {
+        wifi_hal_error_print("%s:%d: Failed to allocate memory for wifi_mld_unit_t\n", __func__, __LINE__);
+        return -1;
+    }
+    dl_list_init(&mld_unit->mld_unit);
+
+    mld = calloc(1, sizeof(struct hostapd_mld));
+    if (mld == NULL) {
+        wifi_hal_error_print("%s:%d: Failed to allocate memory for hostapd_mld %s\n", __func__,
+            __LINE__, interface->mld_name);
+        free(mld_unit);
+        return -1;
+    }
+
+    mld_unit->mld = mld;
+    dl_list_add_tail(&g_wifi_hal.mld_array.mld_unit, &mld_unit->mld_unit);
+
+    strncpy(mld->name, interface->mld_name, sizeof(mld->name) - 1);
+    dl_list_init(&mld->links);
+    mld->ctrl_sock = -1;
+    memcpy(mld->mld_addr, wifi_hal_get_mld_mac_address(interface), ETH_ALEN);
+
+    hapd->mld = mld;
+    mld->refcount++;
+    mld->num_links = 0;
+    mld->next_link_id = 0;
+
+    g_wifi_hal.mld_array.mld_count++;
+
+    return 0;
+}
+
+static void remove_mld_from_array(struct hostapd_mld *mld)
+{
+    wifi_mld_unit_t *mld_it = NULL;
+    dl_list_for_each(mld_it, &g_wifi_hal.mld_array.mld_unit, wifi_mld_unit_t, mld_unit)
+    {
+        if (mld == mld_it->mld) {
+            dl_list_del(&mld_it->mld_unit);
+            free(mld_it->mld);
+            free(mld_it);
+            g_wifi_hal.mld_array.mld_count--;
+            break;
+        }
+    }
+}
+
+int dealloc_mld(wifi_interface_info_t *interface)
+{
+    struct hostapd_data *hapd;
+    hapd = &interface->u.ap.hapd;
+
+    if (hapd->mld == NULL) {
+        wifi_hal_info_print("%s:%d hapd->mld empty, nothing to free \n", __func__, __LINE__);
+        return 0;
+    }
+
+    if (hostapd_if_link_remove(hapd, WPA_IF_AP_BSS, hapd->conf->iface, hapd->mld_link_id) != 0) {
+        wifi_hal_error_print("%s:%d Failed to remove link from driver ! Link id: %d, MLD: %s\n",
+            __func__, __LINE__, hapd->mld_link_id, interface->mld_name);
+        return -1;
+    }
+
+    if (hostapd_mld_remove_link(hapd) != 0) {
+        wifi_hal_error_print(
+            "%s:%d Failed to remove link from hostapd_mld ! Link id: %d, MLD: %s\n", __func__,
+            __LINE__, hapd->mld_link_id, interface->mld_name);
+        return -1;
+    }
+
+    if (hapd->mld->refcount > 0) {
+        hapd->mld->refcount--;
+    }
+
+    if (hapd->mld->refcount == 0) {
+        remove_mld_from_array(hapd->mld);
+    }
+
+    hapd->mld = NULL;
+    hapd->conf->mld_ap = 0;
+    hapd->conf->okc = 0;
+
+    return 0;
 }
 
 #ifdef CONFIG_GENERIC_MLO
@@ -503,112 +636,6 @@ static int setup_mlo_vap(wifi_interface_info_t *interface, wifi_vap_info_t *new_
 }
 #endif // CONFIG_GENERIC_MLO
 
-int alloc_mld(wifi_interface_info_t *interface)
-{
-    struct hostapd_mld *mld;
-    struct hostapd_data *hapd = &interface->u.ap.hapd;
-
-    wifi_mld_unit_t *mld_unit = NULL;
-
-    if (g_wifi_hal.mld_array.mld_count == 0) {
-        dl_list_init(&g_wifi_hal.mld_array.mld_unit);
-    } else {
-        mld = find_mld(interface);
-        if (mld != NULL) {
-            wifi_hal_dbg_print("%s:%d hapd->mld was found for interface %s\n", __func__, __LINE__,
-                interface->name);
-            hapd->mld = mld;
-            mld->refcount++;
-            return 0;
-        }
-    }
-
-    mld_unit = calloc(1, sizeof(wifi_mld_unit_t));
-    if (mld_unit == NULL) {
-        wifi_hal_error_print("%s:%d: Failed to allocate memory for wifi_mld_unit_t\n", __func__, __LINE__);
-        return -1;
-    }
-    dl_list_init(&mld_unit->mld_unit);
-
-    mld = calloc(1, sizeof(struct hostapd_mld));
-    if (mld == NULL) {
-        wifi_hal_error_print("%s:%d: Failed to allocate memory for hostapd_mld %s\n", __func__,
-            __LINE__, interface->mld_name);
-        free(mld_unit);
-        return -1;
-    }
-
-    mld_unit->mld = mld;
-    dl_list_add_tail(&g_wifi_hal.mld_array.mld_unit, &mld_unit->mld_unit);
-
-    strncpy(mld->name, interface->mld_name, sizeof(mld->name) - 1);
-    dl_list_init(&mld->links);
-    mld->ctrl_sock = -1;
-    memcpy(mld->mld_addr, wifi_hal_get_mld_mac_address(interface), ETH_ALEN);
-
-    hapd->mld = mld;
-    mld->refcount++;
-    mld->num_links = 0;
-    mld->next_link_id = 0;
-
-    g_wifi_hal.mld_array.mld_count++;
-
-    return 0;
-}
-
-static void remove_mld_from_array(struct hostapd_mld *mld)
-{
-    wifi_mld_unit_t *mld_it = NULL;
-    dl_list_for_each(mld_it, &g_wifi_hal.mld_array.mld_unit, wifi_mld_unit_t, mld_unit)
-    {
-        if (mld == mld_it->mld) {
-            dl_list_del(&mld_it->mld_unit);
-            free(mld_it->mld);
-            free(mld_it);
-            g_wifi_hal.mld_array.mld_count--;
-            break;
-        }
-    }
-}
-
-int dealloc_mld(wifi_interface_info_t *interface)
-{
-    struct hostapd_data *hapd;
-    hapd = &interface->u.ap.hapd;
-
-    if (hapd->mld == NULL) {
-        wifi_hal_info_print("%s:%d hapd->mld empty, nothing to free \n", __func__, __LINE__);
-        return 0;
-    }
-
-    if (hostapd_if_link_remove(hapd, WPA_IF_AP_BSS, hapd->conf->iface, hapd->mld_link_id) != 0) {
-        wifi_hal_error_print("%s:%d Failed to remove link from driver ! Link id: %d, MLD: %s\n",
-            __func__, __LINE__, hapd->mld_link_id, interface->mld_name);
-        return -1;
-    }
-
-    if (hostapd_mld_remove_link(hapd) != 0) {
-        wifi_hal_error_print(
-            "%s:%d Failed to remove link from hostapd_mld ! Link id: %d, MLD: %s\n", __func__,
-            __LINE__, hapd->mld_link_id, interface->mld_name);
-        return -1;
-    }
-
-    if (hapd->mld->refcount > 0) {
-        hapd->mld->refcount--;
-    }
-
-    if (hapd->mld->refcount == 0) {
-        remove_mld_from_array(hapd->mld);
-    }
-
-    hapd->mld = NULL;
-    hapd->conf->mld_ap = 0;
-    hapd->conf->okc = 0;
-
-    return 0;
-}
-
 int platform_pre_create_vap(wifi_radio_index_t index, wifi_vap_info_map_t *map)
 {
     char output_val[BPI_LEN_32] = { 0 };
@@ -681,6 +708,12 @@ int platform_pre_create_vap(wifi_radio_index_t index, wifi_vap_info_map_t *map)
                 wifi_hal_error_print("%s:%d: Failed to setup link for MLD ID %d with VAP idx %d\n",
                     __func__, __LINE__, vap->u.bss_info.mld_info.common_info.mld_id,
                     vap->vap_index);
+                return -1;
+            }
+
+            if (reload_vap_configuration(interface) != 0) {
+                wifi_hal_error_print("%s:%d: Failed to reload MLD ID %d \n",
+                    __func__, __LINE__, vap->u.bss_info.mld_info.common_info.mld_id);
                 return -1;
             }
         }
@@ -1237,36 +1270,6 @@ void wifi_drv_get_phy_eht_cap_mac(struct eht_capabilities *eht_capab, struct nla
         pos = nla_data(tb[NL80211_BAND_IFTYPE_ATTR_EHT_CAP_MAC]);
         eht_capab->mac_cap = WPA_GET_LE16(pos);
     }
-}
-
-static struct hostapd_mld *find_mld(struct wifi_interface_info_t *interface)
-{
-    wifi_mld_unit_t *mld_it = NULL;
-    dl_list_for_each(mld_it, &g_wifi_hal.mld_array.mld_unit, wifi_mld_unit_t, mld_unit)
-    {
-        if (strncmp(interface->mld_name, mld_it->mld->name, sizeof(mld_it->mld->name)) == 0) {
-            return mld_it->mld;
-        }
-    }
-
-    return NULL;
-}
-
-bool wifi_hal_is_mld_link_exists(struct hostapd_data *hapd)
-{
-    struct hostapd_data *link_bss;
-
-    if (hapd->mld == NULL) {
-        return false;
-    }
-
-    dl_list_for_each(link_bss, &hapd->mld->links, struct hostapd_data, link) {
-        if (link_bss == hapd) {
-            return true;
-        }
-    }
-
-    return false;
 }
 
 int update_hostap_mlo(wifi_interface_info_t *interface)

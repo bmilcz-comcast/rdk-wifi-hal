@@ -6173,7 +6173,7 @@ static int restart_interface(wifi_interface_info_t *interface)
 
     interface->in_reconf = false;
 
-    if (interface->vap_info.u.bss_info.enabled && radio->configured && radio->oper_param.enable) {
+    if (interface->vap_info.u.bss_info.enabled && radio->configured && radio->oper_param.enable && interface->vap_initialized == true) {
         wifi_hal_info_print("%s:%d: interface:%s enable ap\n", __func__, __LINE__, interface_name);
         interface->beacon_set = 0;
         if (start_bss(interface) < 0) {
