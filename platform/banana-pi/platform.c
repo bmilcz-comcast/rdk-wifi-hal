@@ -347,8 +347,6 @@ int platform_pre_create_vap(wifi_radio_index_t index, wifi_vap_info_map_t *map)
             continue;
         }
 
-        interface->vap_info.u.bss_info.mld_info.common_info.mld_enable = vap->u.bss_info.mld_info.common_info.mld_enable;
-
         if (vap->u.bss_info.mld_info.common_info.mld_enable == false ||
             vap->u.bss_info.enabled == false) {
             if (teardown_mlo_vap(interface) != 0) {
@@ -358,12 +356,22 @@ int platform_pre_create_vap(wifi_radio_index_t index, wifi_vap_info_map_t *map)
                 return -1;
             }
 
+            interface->vap_info.u.bss_info.mld_info.common_info.mld_enable = vap->u.bss_info.mld_info.common_info.mld_enable;
+
+            // Reload to update MLD
+            wifi_interface_info_t *first_interface = wifi_hal_get_first_mld_interface(interface);
+            if (first_interface != NULL && hostapd_mld_is_first_bss(&first_interface->u.ap.hapd)) {
+                reload_vap_configuration(first_interface);
+            }
+
             // Set link_id to NA in DML
             vap->u.bss_info.mld_info.common_info.mld_link_id = NL80211_DRV_LINK_ID_NA;
             interface->vap_info.u.bss_info.mld_info.common_info.mld_link_id =
                 NL80211_DRV_LINK_ID_NA;
             continue;
         } else {
+
+            interface->vap_info.u.bss_info.mld_info.common_info.mld_enable = vap->u.bss_info.mld_info.common_info.mld_enable;
             if (setup_mlo_vap(interface, vap) != 0) {
                 wifi_hal_error_print("%s:%d: Failed to setup link for MLD ID %d with VAP idx %d\n",
                     __func__, __LINE__, vap->u.bss_info.mld_info.common_info.mld_id,

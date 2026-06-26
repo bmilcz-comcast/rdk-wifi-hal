@@ -6445,7 +6445,6 @@ static int dealloc_mld(wifi_interface_info_t *interface)
 
 int teardown_mlo_vap(wifi_interface_info_t *interface)
 {
-    wifi_interface_info_t *first_interface = NULL;
     unsigned int ifidx = 0;
 
     if (nl80211_enable_ap(interface, false) < 0) {
@@ -6455,6 +6454,7 @@ int teardown_mlo_vap(wifi_interface_info_t *interface)
     }
 
     if (hostapd_mld_is_first_bss(&interface->u.ap.hapd)) {
+        wifi_interface_info_t *first_interface = NULL;
         // We are removing the first link.
         // First interface pointer could point to invalid data
         // for shared resources if removed first.
@@ -6511,8 +6511,6 @@ int teardown_mlo_vap(wifi_interface_info_t *interface)
                 __LINE__, interface->vap_info.vap_index, interface->mld_name);
             return -1;
         }
-
-        first_interface = wifi_hal_get_first_mld_interface(interface);
     }
 
     // Necessary in case of readding
@@ -6537,10 +6535,6 @@ int teardown_mlo_vap(wifi_interface_info_t *interface)
     interface->vap_initialized = false;
     interface->vap_configured = false;
 
-    // Reload to update MLD
-    if (first_interface != NULL && hostapd_mld_is_first_bss(&first_interface->u.ap.hapd)) {
-        reload_vap_configuration(first_interface);
-    }
     return 0;
 }
 

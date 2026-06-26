@@ -1604,6 +1604,12 @@ INT wifi_hal_createVAP(wifi_radio_index_t index, wifi_vap_info_map_t *map)
                 wifi_hal_configure_mbssid(radio);
             }
 
+            //Check if other VAPs/APs work after bringing the reload
+            //back in here
+            if (wifi_hal_is_mld_enabled(interface) && vap->u.bss_info.enabled) {
+                reload_vap_configuration(interface);
+            }
+
         } else if (vap->vap_mode == wifi_vap_mode_sta) {
 #if defined(CONFIG_WIFI_EMULATOR)
             if (nl80211_create_bridge(interface_name, vap->bridge_name) != 0) {
