@@ -364,7 +364,9 @@ int platform_pre_create_vap(wifi_radio_index_t index, wifi_vap_info_map_t *map)
 
             // Reload to update MLD
             wifi_interface_info_t *first_interface = wifi_hal_get_first_mld_interface(interface);
-            if (first_interface != NULL && hostapd_mld_is_first_bss(&first_interface->u.ap.hapd)) {
+            if (first_interface == NULL) {
+                nl80211_remove_from_bridge(interface->mld_name);
+            } else if (first_interface != NULL && hostapd_mld_is_first_bss(&first_interface->u.ap.hapd)) {
                 if (reload_vap_configuration(first_interface) != 0) {
                     wifi_hal_error_print(
                         "%s:%d: Failed to reload VAP configuration for MLD ID %d\n", __func__,

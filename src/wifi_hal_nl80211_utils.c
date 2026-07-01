@@ -6518,7 +6518,7 @@ int teardown_mlo_vap(wifi_interface_info_t *interface)
     }
 
     // Necessary in case of readding
-    nl80211_remove_from_bridge(interface->name);
+    //nl80211_remove_from_bridge(interface->name);
 
     // Remove MLD mac address
     if (wifi_hal_set_mld_mac_address(interface, interface->mac) < 0) {
@@ -6609,7 +6609,8 @@ int setup_mlo_vap(wifi_interface_info_t *interface, wifi_vap_info_t *new_vap_con
     }
 
     // Necessary in case of readding
-    nl80211_remove_from_bridge(interface->mld_name);
+    nl80211_remove_from_bridge(interface->name);
+    //nl80211_remove_from_bridge(interface->mld_name);
 
     // This will enforce:
     // Security reload
