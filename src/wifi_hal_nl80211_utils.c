@@ -5816,6 +5816,10 @@ char *wifi_hal_get_interface_name(wifi_interface_info_t *interface)
         return NULL;
     }
 
+    wifi_hal_error_print("%s:%d: enabled: %s, wifi_hal_is_mld_enabled: %s, interface->mld_name: %s\n", __func__, __LINE__,
+        interface->vap_info.u.bss_info.enabled ? "true" : "false",
+        wifi_hal_is_mld_enabled(interface) ? "true" : "false",
+        interface->mld_name);
 #ifdef CONFIG_GENERIC_MLO
     if ((interface->vap_info.u.bss_info.enabled == false) ||
         (wifi_hal_is_mld_enabled(interface) == false) || (interface->mld_name[0] == '\0')) {
