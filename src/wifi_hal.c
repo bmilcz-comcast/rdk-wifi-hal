@@ -842,10 +842,11 @@ INT wifi_hal_setRadioOperatingParameters(wifi_radio_index_t index, wifi_radio_op
                         if (setup_mlo_vap(interface, &interface->vap_info) != RETURN_OK) {
                             return RETURN_ERR;
                         }
-                    } else {
-                        if (restart_interface(interface)) {
+                    }
+
+                    //Important side effect to this is that this will make sure we trigger the beacon twice
+                    if (restart_interface(interface)) {
                             return RETURN_ERR;
-                        }
                     }
 #else
                     if (update_hostap_interface_params(interface) != RETURN_OK) {
@@ -860,21 +861,18 @@ INT wifi_hal_setRadioOperatingParameters(wifi_radio_index_t index, wifi_radio_op
                 }
 
                 if (radio->oper_param.enable == false && interface->bss_started) {
-                    /* Clear beacon interval in wdev by stoping AP */
 #if defined(BANANA_PI_PORT) && defined(CONFIG_GENERIC_MLO)
                     if (wifi_hal_is_mld_enabled(interface)) {
                         if (teardown_mlo_vap(interface)) {
                             return RETURN_ERR;
                         }
-                    } else {
-                        reload_interface(interface);
-                        if (update_hostap_interface_params(interface) != RETURN_OK) {
-                            free(old_operationParam);
-                            old_operationParam = NULL;
-                            return RETURN_ERR;
-                        }
+                    }
+
+                    if (reload_interface(interface)) {
+                        return RETURN_ERR;
                     }
 #else
+                    /* Clear beacon interval in wdev by stoping AP */
                     nl80211_interface_enable(interface_name, false);
                     nl80211_interface_enable(interface_name, true);
                     interface->beacon_set = 0;

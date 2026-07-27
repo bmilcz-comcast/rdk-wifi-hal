@@ -6512,7 +6512,6 @@ static void remove_mld_from_array(struct hostapd_mld *mld)
             free(mld_it->mld);
             free(mld_it);
             g_wifi_hal.mld_array.mld_count--;
-            wifi_hal_dbg_print("%s:%d MLD group removed \n", __func__, __LINE__);
             break;
         }
     }
@@ -6550,7 +6549,7 @@ static int dealloc_mld(wifi_interface_info_t *interface)
 
     if (hapd->mld->refcount == 0) {
         remove_mld_from_array(hapd->mld);
-      wifi_hal_dbg_print("%s:%d MLD group destroyed \n", __func__, __LINE__);
+        wifi_hal_dbg_print("%s:%d MLD group destroyed \n", __func__, __LINE__);
     }
 
     hapd->mld = NULL;
