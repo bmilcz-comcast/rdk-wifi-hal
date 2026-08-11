@@ -1281,6 +1281,12 @@ struct wpa_ssid *get_wifi_wpa_current_ssid(wifi_interface_info_t *interface);
 #define NL80211_DRV_LINK_ID_NA (-1)
 #endif
 
+#if defined(CONFIG_IEEE80211BE)
+#define MLD_UNIT_COUNT 8
+#define UNDEFINED_MLD_ID (u8)NL80211_DRV_LINK_ID_NA
+#define UNDEFINED_MLO_LINK_ID (u8)NL80211_DRV_LINK_ID_NA
+#endif
+
 #ifdef CONFIG_IEEE80211BE
 int nl80211_drv_mlo_msg(struct nl_msg *msg, struct nl_msg **msg_mlo, void *priv,
     struct wpa_driver_ap_params *params);

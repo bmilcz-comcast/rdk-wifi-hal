@@ -115,9 +115,6 @@ static void platform_set_eht(wifi_radio_index_t index, bool enable);
 #define RADIO_INDEX_6G 2
 
 #ifdef CONFIG_IEEE80211BE
-#define MLD_UNIT_COUNT 8
-#define UNDEFINED_MLD_ID (u8)-1
-#define UNDEFINED_MLO_LINK_ID (u8)NL80211_DRV_LINK_ID_NA
 #define USER_NVRAM_CHANGED      0x01
 #define KERNEL_NVRAM_CHANGED    0x02
 #endif
