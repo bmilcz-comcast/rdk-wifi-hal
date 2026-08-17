@@ -385,6 +385,7 @@ int platform_pre_create_vap(wifi_radio_index_t index, wifi_vap_info_map_t *map)
             interface->vap_info.u.bss_info.mld_info.common_info.mld_enable =
                 vap->u.bss_info.mld_info.common_info.mld_enable;
             interface->vap_info.u.bss_info.enabled = vap->u.bss_info.enabled;
+            interface->vap_info.u.bss_info.mld_info.common_info.mld_link_id = UNDEFINED_MLD_LINK_ID;
 
             //TODO: Above order - first getting interface, then changing the mld_enable/enabled values
             //seems weird but it is important, as wifi_hal_get_first_mld_interface due to its structure
