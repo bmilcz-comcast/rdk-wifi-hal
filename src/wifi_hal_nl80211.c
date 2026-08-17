@@ -2185,9 +2185,9 @@ int process_frame_mgmt(wifi_interface_info_t *interface, struct ieee80211_mgmt *
 
     case WLAN_FC_STYPE_PROBE_REQ:
         mgmt_type = WIFI_MGMT_FRAME_TYPE_PROBE_REQ;
-        wifi_hal_dbg_print("%s:%d: Received probe req frame on interface:%s from the sta : %s and "
-                           "the phy_rate:%d\n",
-            __func__, __LINE__, interface->name, to_mac_str(sta, sta_mac_str), phy_rate);
+        //wifi_hal_dbg_print("%s:%d: Received probe req frame on interface:%s from the sta : %s and "
+        //                   "the phy_rate:%d\n",
+        //    __func__, __LINE__, interface->name, to_mac_str(sta, sta_mac_str), phy_rate);
 
         if (callbacks->steering_event_callback != 0) {
             handle_probe_req_event_for_bm(interface, mgmt, len, sta, sig_dbm);
@@ -4963,9 +4963,9 @@ skip:   found = 0;
         strcat(channels_str, channel_str);
         chan++;
     }
-    wifi_hal_dbg_print("%s:%d: Freq Band: %s for radio: %d num channels: %d channels:\n%s\n",
-        __func__, __LINE__, wifi_freq_bands_to_string(freq_band), radio->index,
-        mode->num_channels, channels_str);
+    // wifi_hal_dbg_print("%s:%d: Freq Band: %s for radio: %d num channels: %d channels:\n%s\n",
+    //     __func__, __LINE__, wifi_freq_bands_to_string(freq_band), radio->index,
+    //     mode->num_channels, channels_str);
 
     return mode;
 }
@@ -6461,12 +6461,13 @@ static int wiphy_get_info_handler(struct nl_msg *msg, void *arg)
         return NL_OK;
     }
 
-    wifi_hal_dbg_print("%s:%d:wiphy index:%d rdk_radio_index:%d name:%s\n",
-        __func__, __LINE__, radio->index, radio->rdk_radio_index, radio->name);
+    // wifi_hal_dbg_print("%s:%d:wiphy index:%d rdk_radio_index:%d name:%s\n",
+    //     __func__, __LINE__, radio->index, radio->rdk_radio_index, radio->name);
 
     radio->capab.rdk_radio_index = radio->rdk_radio_index;
-    wifi_hal_dbg_print("%s:%d:radio->capab.rdk_radio_index:%d\n", __func__, __LINE__,
-        radio->capab.rdk_radio_index);
+    // wifi_hal_dbg_print("%s:%d:radio->capab.rdk_radio_index:%d\n",
+    //     __func__, __LINE__, radio->capab.rdk_radio_index);
+    radio->capab.cipherSupported = 0;
     if (tb[NL80211_ATTR_CIPHER_SUITES]) {
         phy_info_cipher(radio, tb[NL80211_ATTR_CIPHER_SUITES]);
     }
@@ -6479,9 +6480,9 @@ static int wiphy_get_info_handler(struct nl_msg *msg, void *arg)
             //if it is applicable
             band_type = nla_type(nl_band);
             radio_nl80211_band_type = get_nl80211_band_from_rdk_radio_index(radio->rdk_radio_index);
-            wifi_hal_dbg_print("%s:%d:band_type:%d radio_band_type:%d processing:%s\n",
-                __func__, __LINE__, band_type, radio_nl80211_band_type,
-                ((band_type == radio_nl80211_band_type)? "yes":"no"));
+            // wifi_hal_dbg_print("%s:%d:band_type:%d radio_band_type:%d processing:%s\n",
+            //     __func__, __LINE__, band_type, radio_nl80211_band_type,
+            //     ((band_type == radio_nl80211_band_type)? "yes":"no"));
             if (band_type == radio_nl80211_band_type) {
                 phy_info_band(radio, nl_band);
             }
@@ -6515,8 +6516,8 @@ static int wiphy_get_info_handler(struct nl_msg *msg, void *arg)
                 if (radio->capab.maxNumberVAPs > MAX_NUM_VAP_PER_RADIO) {
                     radio->capab.maxNumberVAPs = MAX_NUM_VAP_PER_RADIO;
                 }
-                wifi_hal_dbg_print("%s:%d: radio index:%d max number of vaps:%d\n",
-                    __func__, __LINE__, radio->index, radio->capab.maxNumberVAPs);
+                // wifi_hal_dbg_print("%s:%d: radio index:%d max number of vaps:%d\n",
+                //     __func__, __LINE__, radio->index, radio->capab.maxNumberVAPs);
             }
         }
     } else {
@@ -6698,12 +6699,11 @@ int interface_info_handler(struct nl_msg *msg, void *arg)
             //TODO: this is legacy way of setting interface to be in MLD
             //group. It is redundant for AP type of VAP, STA still needs
             //alignment so that this is not needed.
+            mac_address_t mld_mac = {};
             if (vap->vap_mode == wifi_vap_mode_sta) {
                 char *mld_name = wifi_hal_get_mld_name_by_interface_name(interface->name);
                 unsigned char link_id = 0U;
                 if (wifi_hal_is_mld_enabled(interface) || (mld_name != NULL)) {
-                    mac_address_t mld_mac = {};
-
 
                     if (mld_name) {
                         strncpy(interface->mld_name, mld_name, sizeof(interface->mld_name) - 1);
@@ -6735,6 +6735,10 @@ int interface_info_handler(struct nl_msg *msg, void *arg)
                     wifi_hal_set_mld_link_id(interface, link_id);
                     link_id++;
                 }
+            } else {
+                wifi_hal_set_mld_enabled(interface, false);
+                wifi_hal_set_mld_mac_address(interface, mld_mac);
+                interface->vap_info.u.bss_info.mld_info.common_info.mld_link_id = 255;
             }
 #endif /* CONFIG_GENERIC_MLO & CONFIG_IEEE80211BE */
 
@@ -6877,14 +6881,14 @@ static int phy_info_handler(struct nl_msg *msg, void *arg)
 #endif //FEATURE_SINGLE_PHY
                 radio_nl80211_band_type = get_nl80211_band_from_rdk_radio_index(
                     radio->rdk_radio_index);
-                wifi_hal_dbg_print("%s:%d: wiphy index:%d name:%s rdk_radio_index:%d\n", __func__,
-                    __LINE__, radio->index, radio->name, radio->rdk_radio_index);
-                wifi_hal_dbg_print("%s:%d:band_type:%d radio_band_type:%d processing:%s\n",
-                    __func__, __LINE__, nl_band->nla_type, radio_nl80211_band_type,
-                    ((nl_band->nla_type == radio_nl80211_band_type) ? "yes" : "no"));
+                // wifi_hal_dbg_print("%s:%d: wiphy index:%d name:%s rdk_radio_index:%d\n", __func__,
+                //     __LINE__, radio->index, radio->name, radio->rdk_radio_index);
+                // wifi_hal_dbg_print("%s:%d:band_type:%d radio_band_type:%d processing:%s\n",
+                //     __func__, __LINE__, nl_band->nla_type, radio_nl80211_band_type,
+                //     ((nl_band->nla_type == radio_nl80211_band_type) ? "yes" : "no"));
                 if (nl_band->nla_type == radio_nl80211_band_type) {
-                    wifi_hal_dbg_print("%s:%d:phy_info_rates being invoked from phy_info_handler\n",
-                        __func__, __LINE__);
+                    // wifi_hal_dbg_print("%s:%d:phy_info_rates being invoked from phy_info_handler\n",
+                    //     __func__, __LINE__);
                     phy_info_ht_capa(&radio->hw_modes[radio_nl80211_band_type],
                         tb_msg[NL80211_BAND_ATTR_HT_CAPA],
                         tb_msg[NL80211_BAND_ATTR_HT_AMPDU_FACTOR],
@@ -6911,11 +6915,11 @@ static int phy_info_handler(struct nl_msg *msg, void *arg)
         for (i = 0; i < g_wifi_hal.num_radios; i++) {
             radio = &g_wifi_hal.radio_info[i];
             radio_nl80211_band_type = get_nl80211_band_from_rdk_radio_index(radio->rdk_radio_index);
-            wifi_hal_dbg_print("%s:%d: wiphy index:%d name:%s rdk_radio_index:%d\n", __func__,
-                __LINE__, radio->index, radio->name, radio->rdk_radio_index);
-            wifi_hal_dbg_print("%s:%d:band_type:%d radio_band_type:%d processing:%s\n", __func__,
-                __LINE__, nl_band->nla_type, radio_nl80211_band_type,
-                ((nl_band->nla_type == radio_nl80211_band_type) ? "yes" : "no"));
+            // wifi_hal_dbg_print("%s:%d: wiphy index:%d name:%s rdk_radio_index:%d\n", __func__,
+            //     __LINE__, radio->index, radio->name, radio->rdk_radio_index);
+            // wifi_hal_dbg_print("%s:%d:band_type:%d radio_band_type:%d processing:%s\n", __func__,
+            //     __LINE__, nl_band->nla_type, radio_nl80211_band_type,
+            //     ((nl_band->nla_type == radio_nl80211_band_type) ? "yes" : "no"));
 
             if (nl_band->nla_type == radio_nl80211_band_type) {
                 if (phy_info_freqs(radio, tb_msg[NL80211_BAND_ATTR_FREQS], &band) == NULL) {
@@ -9013,8 +9017,6 @@ int nl80211_register_mgmt_frames(wifi_interface_info_t *interface)
     struct nl_msg *msg;
     unsigned int i;
     int ret;
-    const unsigned int wait_usec = 500000;
-
     /**
      * While stations are able to register for Action, Probe Request, and Authentication frames,
      * authentication frames need additional information to be registered succeesfully.
@@ -9144,7 +9146,7 @@ int nl80211_register_mgmt_frames(wifi_interface_info_t *interface)
                 wifi_hal_info_print(
                     "%s:%d: Mgmt frames already registered for %s and frame_type %d \n", __func__,
                     __LINE__, wifi_hal_get_interface_name(interface), frame_type);
-                usleep(wait_usec);
+                sleep(1);
             } else {
                 wifi_hal_error_print("%s:%d: Error registering for management frames on interface "
                                      "%s error: %d (%s)\n",
@@ -13563,6 +13565,16 @@ int wifi_drv_start_radar_detection(void *priv, struct hostapd_freq_params *freq)
         wifi_hal_error_print("%s nl80211: Failed to set nl80211 radar msg \n", __FUNCTION__);
         return -1;
     }
+
+#if defined(CONFIG_GENERIC_MLO) && defined(_PLATFORM_BANANAPI_R4_)
+    if (wifi_hal_is_mld_enabled(interface)) {
+        if (nla_put_u8(msg, NL80211_ATTR_MLO_LINK_ID, interface->vap_info.u.bss_info.mld_info.common_info.mld_link_id) < 0) {
+            wifi_hal_error_print("%s:%d: Failed to set MLO link ID\n", __func__, __LINE__);
+            nlmsg_free(msg);
+            return -1;
+        }
+    }
+#endif
 
     ret = nl80211_send_and_recv(msg, NULL, NULL, NULL, NULL);
     if (ret != 0) {
@@ -19213,10 +19225,6 @@ short get_non_dfs_chan(wifi_interface_info_t *interface, u8 *oper_centr_freq_seg
     struct hostapd_channel_data *chan = NULL;
     wifi_radio_info_t *radio;
 
-    *oper_centr_freq_seg0_idx = 0;
-    *oper_centr_freq_seg1_idx = 0;
-    *secondary_channel        = 0;
-
     radio = get_radio_by_rdk_index(interface->vap_info.radio_index);
     if (radio == NULL) {
         wifi_hal_error_print("%s:%d: [DFS]: no radio for index %d\n", __func__, __LINE__,
@@ -19243,11 +19251,21 @@ short get_non_dfs_chan(wifi_interface_info_t *interface, u8 *oper_centr_freq_seg
         }
     }
 
-#if HOSTAPD_VERSION >= 210 // 2.10
+#if HOSTAPD_VERSION >= 210
+#if CONFIG_GENERIC_MLO
+    chan = dfs_get_valid_channel(&interface->u.ap.iface, secondary_channel,
+                                    oper_centr_freq_seg0_idx,
+                                    oper_centr_freq_seg1_idx,
+                                    DFS_AVAILABLE);
+#else
+    *oper_centr_freq_seg0_idx = 0;
+    *oper_centr_freq_seg1_idx = 0;
+    *secondary_channel        = 0;
     chan = dfs_get_valid_channel(&interface->u.ap.iface, secondary_channel,
                                     oper_centr_freq_seg0_idx,
                                     oper_centr_freq_seg1_idx,
                                     DFS_NON_DFS_ONLY);
+#endif
 #endif /* HOSTAPD_VERSION >= 210 */
 
     if (chan == NULL) {
@@ -19350,10 +19368,8 @@ int nl80211_interface_reenable(wifi_radio_info_t *radio, int freq)
             if(ieee802_11_update_beacons(&dfs_interface->u.ap.iface)) {
                 wifi_hal_error_print("%s:%d ieee802_11_update_beacons Failed\n", __func__, __LINE__);
             }
-            pthread_mutex_unlock(&g_wifi_hal.hapd_lock);
 
             dfs_interface->u.ap.hapd.reenable_beacon = 0;
-            pthread_mutex_lock(&g_wifi_hal.hapd_lock);
             if(ieee802_11_update_beacons(&dfs_interface->u.ap.iface)) {
                 wifi_hal_error_print("%s:%d ieee802_11_update_beacons Failed for SET_BEACON\n", __func__, __LINE__);
             }
@@ -19422,7 +19438,7 @@ int reenable_prim_interface(wifi_radio_info_t *radio) {
 //Initiates the call to start CAC. Takes 1 min for CAC to complete
 int nl80211_start_dfs_cac(wifi_radio_info_t *radio)
 {
-#ifdef CMXB7_PORT
+#if defined(CMXB7_PORT) || defined(_PLATFORM_BANANAPI_R4_)
     wifi_interface_info_t *interface, *dfs_interface;
     int sec_chan_offset = 0, freq = 5180, freq1 = -1;
     char country[8];
@@ -19503,7 +19519,9 @@ int nl80211_start_dfs_cac(wifi_radio_info_t *radio)
                 hostapd_config_clear_wpa_psk(&interface->u.ap.hapd.conf->ssid.wpa_psk);
             pthread_mutex_unlock(&g_wifi_hal.hapd_lock);
 
-            res = nl80211_interface_enable(dfs_interface->name, false);
+            //BRAYAN - starting DFS fails if we disable the wdev for cac ?
+            //check on openwrt
+            //res = nl80211_interface_enable(dfs_interface->name, false);
             if(!res) {
                 hostapd_set_state(&dfs_interface->u.ap.iface, HAPD_IFACE_DISABLED);
                 wifi_hal_info_print("%s:%d interface:%s Disabled for CAC \n",__FUNCTION__, __LINE__, dfs_interface->name);
@@ -19565,21 +19583,31 @@ int set_freq_and_interface_enable(wifi_interface_info_t *interface, wifi_radio_i
     interface->u.ap.hapd.iface->conf->channel = radio->oper_param.channel;
     interface->u.ap.hapd.iface->freq = freq;
 
-    wifi_hal_info_print("%s:%d name:%s freq:%d sec_chan:%d bandwidth:%d chan:%u \n", __func__, __LINE__,
-            interface->name, freq, sec_chan_offset, radio->oper_param.channelWidth, radio->oper_param.channel);
+    wifi_hal_info_print("%s:%d name:%s freq:%d sec_chan:%d bandwidth:%d chan:%u, cf1:%d, ht_enabled:%d \n", __func__, __LINE__,
+            interface->name, freq, sec_chan_offset, radio->oper_param.channelWidth, radio->oper_param.channel, cf1, ht_enabled);
 
     update_hostap_config_params(radio);
-//#ifndef BANANA_PI_PORT
+
     if(( prim_interface_set_freq(radio, interface, freq, radio->oper_param.channel, sec_chan_offset, ht_enabled, radio->oper_param.channelWidth, cf1, country) )) {
         wifi_hal_error_print("nl80211-%s:%d prim_interface_set_freq Failed \n", __func__, __LINE__);
         return RETURN_ERR;
     }
-
+#ifndef BANANA_PI_PORT
     if ( nl80211_interface_reenable(radio, freq) ) {
         wifi_hal_error_print("nl80211-%s:%d nl80211_interface_reenable Failed \n", __func__, __LINE__);
         return RETURN_ERR;
     }
-//#endif
+#else
+    if (start_bss(interface) < 0) {
+        wifi_hal_error_print("%s:%d start_bss Failed \n", __func__, __LINE__);
+        return RETURN_ERR;
+    }
+
+    if (ieee802_11_set_beacon(&interface->u.ap.hapd)) {
+        wifi_hal_error_print("%s:%d ieee802_11_set_beacon Failed \n", __func__, __LINE__);
+        return RETURN_ERR;
+    }
+#endif
     dfs_chan_change_event(interface->vap_info.radio_index, radio->oper_param.channel, radio->oper_param.channelWidth, radio->oper_param.operatingClass);
 #endif
     return RETURN_OK;
@@ -19605,12 +19633,7 @@ int nl80211_dfs_cac_started(wifi_interface_info_t *interface, int freq, int ht_e
             interface->vap_info.radio_index);
         return 0;
     }
-#ifdef BANANA_PI_PORT
-    pthread_mutex_lock(&g_wifi_hal.hapd_lock);
-    interface->u.ap.iface.cac_started = 1;
-    wifi_hal_info_print("%s:%d CAC is started. Setting cac_started = 1\n", __func__, __LINE__);
-    pthread_mutex_unlock(&g_wifi_hal.hapd_lock);
-#endif
+
     if ((callbacks != NULL) && (callbacks->channel_change_event_callback)) {
        radio_channel_param.radioIndex = interface->vap_info.radio_index;
        radio_channel_param.event = WIFI_EVENT_DFS_RADAR_DETECTED;
@@ -19631,7 +19654,7 @@ int nl80211_dfs_radar_cac_aborted(wifi_interface_info_t *interface, int freq, in
                                int sec_chan_offset, int bandwidth, int bw, int cf1, int cf2)
 {
     wifi_radio_info_t *radio;
-#if defined(CMXB7_PORT)
+#if defined(CMXB7_PORT) || defined(BANANA_PI_PORT)
     wifi_radio_operationParam_t radio_param;
     u8 oper_centr_freq_seg0_idx = 0;
     u8 oper_centr_freq_seg1_idx = 0;
@@ -19672,35 +19695,6 @@ int nl80211_dfs_radar_cac_aborted(wifi_interface_info_t *interface, int freq, in
         wifi_hal_error_print("%s:%d update_channel_flags failed \n", __func__, __LINE__);
     }
 #endif
-
-#ifdef BANANA_PI_PORT
-    if(!interface->u.ap.iface.cac_started) {
-        return 0;
-    }
-    radio = get_radio_by_rdk_index(interface->vap_info.radio_index);
-    if (radio == NULL) {
-        wifi_hal_error_print("%s:%d: could not find radio index:%d\n", __func__, __LINE__, interface->vap_info.radio_index);
-        return 0;
-    }
-
-    pthread_mutex_lock(&g_wifi_hal.hapd_lock);
-    interface->u.ap.iface.cac_started = 0;
-    pthread_mutex_unlock(&g_wifi_hal.hapd_lock);
-
-    if (interface->vap_info.vap_mode == wifi_vap_mode_ap) {
-        pthread_mutex_lock(&g_wifi_hal.hapd_lock);
-        wifi_interface_info_t *dfs_interface;
-        hash_map_foreach(radio->interface_map, dfs_interface) {
-            if (dfs_interface->u.ap.hapd.csa_in_progress) {
-                wifi_hal_info_print("%s:%d: CAC is aborted,clearing stale CSA params for %s csa_in_progress=%d\n",
-                        __func__, __LINE__, dfs_interface->name,
-                        dfs_interface->u.ap.hapd.csa_in_progress);
-                hostapd_cleanup_cs_params(&dfs_interface->u.ap.hapd);
-            }
-        }
-            pthread_mutex_unlock(&g_wifi_hal.hapd_lock);
-    }
-#endif
     return 0;
 }
 
@@ -19726,9 +19720,6 @@ int nl80211_dfs_radar_cac_finished(wifi_interface_info_t *interface, int freq, i
         if( wifi_hal_setRadioOperatingParameters(interface->vap_info.radio_index, &radio_param) ) {
             wifi_hal_error_print("nl80211-%s:%d wifi_hal_setRadioOperatingParameters Failed \n", __func__, __LINE__);
         }
-        pthread_mutex_lock(&g_wifi_hal.hapd_lock);
-        interface->u.ap.iface.cac_started = 0;
-        pthread_mutex_unlock(&g_wifi_hal.hapd_lock);
 
         if (update_channel_flags() != 0) {
             wifi_hal_error_print("%s:%d update_channel_flags failed \n", __func__, __LINE__);

@@ -1922,10 +1922,22 @@ int process_global_nl80211_event(struct nl_msg *msg, void *arg)
     case NL80211_CMD_RADAR_DETECT:
         // To handle CAC Finish and CAC Abort for DFS. These event involve only the primary
         // interface of the radio.
-        if (!(event_type == NL80211_RADAR_CAC_FINISHED || event_type == NL80211_RADAR_CAC_ABORTED))
-            break;
+        if (!(event_type == NL80211_RADAR_CAC_FINISHED || event_type == NL80211_RADAR_CAC_ABORTED || event_type == NL80211_RADAR_PRE_CAC_EXPIRED)) {
+            uint freq = 0;
+            if (tb[NL80211_ATTR_WIPHY_FREQ]) {
+                freq = nla_get_u32(tb[NL80211_ATTR_WIPHY_FREQ]);
+            } else {
+                wifi_hal_error_print("%s:%d: freq attribute not present\n", __func__, __LINE__);
+                break;
+            }
 
-        /* fall through */
+            if (wifi_hal_is_mld_enabled(interface)) {
+                interface = wifi_hal_get_mld_interface_by_freq(interface, freq);
+            }
+            } else if (interface == NULL) {
+                //TODO: fetch interface by freq
+            }
+        break;
     case NL80211_CMD_NEW_SCAN_RESULTS:
     case NL80211_CMD_TRIGGER_SCAN:
     case NL80211_CMD_SCAN_ABORTED:
