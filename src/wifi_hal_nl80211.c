@@ -2183,9 +2183,9 @@ int process_frame_mgmt(wifi_interface_info_t *interface, struct ieee80211_mgmt *
 
     case WLAN_FC_STYPE_PROBE_REQ:
         mgmt_type = WIFI_MGMT_FRAME_TYPE_PROBE_REQ;
-        wifi_hal_dbg_print("%s:%d: Received probe req frame on interface:%s from the sta : %s and "
-                           "the phy_rate:%d\n",
-            __func__, __LINE__, interface->name, to_mac_str(sta, sta_mac_str), phy_rate);
+        // wifi_hal_dbg_print("%s:%d: Received probe req frame on interface:%s from the sta : %s and "
+        //                    "the phy_rate:%d\n",
+        //     __func__, __LINE__, interface->name, to_mac_str(sta, sta_mac_str), phy_rate);
 
         if (callbacks->steering_event_callback != 0) {
             handle_probe_req_event_for_bm(interface, mgmt, len, sta, sig_dbm);
@@ -6755,14 +6755,14 @@ static int phy_info_handler(struct nl_msg *msg, void *arg)
 #endif //FEATURE_SINGLE_PHY
                 radio_nl80211_band_type = get_nl80211_band_from_rdk_radio_index(
                     radio->rdk_radio_index);
-                wifi_hal_dbg_print("%s:%d: wiphy index:%d name:%s rdk_radio_index:%d\n", __func__,
-                    __LINE__, radio->index, radio->name, radio->rdk_radio_index);
-                wifi_hal_dbg_print("%s:%d:band_type:%d radio_band_type:%d processing:%s\n",
-                    __func__, __LINE__, nl_band->nla_type, radio_nl80211_band_type,
-                    ((nl_band->nla_type == radio_nl80211_band_type) ? "yes" : "no"));
+                // wifi_hal_dbg_print("%s:%d: wiphy index:%d name:%s rdk_radio_index:%d\n", __func__,
+                //     __LINE__, radio->index, radio->name, radio->rdk_radio_index);
+                // wifi_hal_dbg_print("%s:%d:band_type:%d radio_band_type:%d processing:%s\n",
+                //     __func__, __LINE__, nl_band->nla_type, radio_nl80211_band_type,
+                //     ((nl_band->nla_type == radio_nl80211_band_type) ? "yes" : "no"));
                 if (nl_band->nla_type == radio_nl80211_band_type) {
-                    wifi_hal_dbg_print("%s:%d:phy_info_rates being invoked from phy_info_handler\n",
-                        __func__, __LINE__);
+                    // wifi_hal_dbg_print("%s:%d:phy_info_rates being invoked from phy_info_handler\n",
+                    //     __func__, __LINE__);
                     phy_info_ht_capa(&radio->hw_modes[radio_nl80211_band_type],
                         tb_msg[NL80211_BAND_ATTR_HT_CAPA],
                         tb_msg[NL80211_BAND_ATTR_HT_AMPDU_FACTOR],
@@ -19023,10 +19023,6 @@ short get_non_dfs_chan(wifi_interface_info_t *interface, u8 *oper_centr_freq_seg
     struct hostapd_channel_data *chan = NULL;
     wifi_radio_info_t *radio;
 
-    *oper_centr_freq_seg0_idx = 0;
-    *oper_centr_freq_seg1_idx = 0;
-    *secondary_channel        = 0;
-
     radio = get_radio_by_rdk_index(interface->vap_info.radio_index);
     if (radio == NULL) {
         wifi_hal_error_print("%s:%d: [DFS]: no radio for index %d\n", __func__, __LINE__,
@@ -19053,11 +19049,22 @@ short get_non_dfs_chan(wifi_interface_info_t *interface, u8 *oper_centr_freq_seg
         }
     }
 
-#if HOSTAPD_VERSION >= 210 // 2.10
+#if HOSTAPD_VERSION >= 210
+#if CONFIG_GENERIC_MLO
+     chan = dfs_get_valid_channel(&interface->u.ap.iface, secondary_channel,
+                                    oper_centr_freq_seg0_idx,
+                                    oper_centr_freq_seg1_idx,
+                                    DFS_AVAILABLE);
+#else
+    *oper_centr_freq_seg0_idx = 0;
+    *oper_centr_freq_seg1_idx = 0;
+    *secondary_channel        = 0;
+
     chan = dfs_get_valid_channel(&interface->u.ap.iface, secondary_channel,
                                     oper_centr_freq_seg0_idx,
                                     oper_centr_freq_seg1_idx,
                                     DFS_NON_DFS_ONLY);
+#endif
 #endif /* HOSTAPD_VERSION >= 210 */
 
     if (chan == NULL) {
@@ -19375,8 +19382,8 @@ int set_freq_and_interface_enable(wifi_interface_info_t *interface, wifi_radio_i
     interface->u.ap.hapd.iface->conf->channel = radio->oper_param.channel;
     interface->u.ap.hapd.iface->freq = freq;
 
-    wifi_hal_info_print("%s:%d name:%s freq:%d sec_chan:%d bandwidth:%d chan:%u \n", __func__, __LINE__,
-            interface->name, freq, sec_chan_offset, radio->oper_param.channelWidth, radio->oper_param.channel);
+    wifi_hal_info_print("%s:%d name:%s freq:%d sec_chan:%d bandwidth:%d chan:%u ht_enabled:%d cf1:%d\n", __func__, __LINE__,
+            interface->name, freq, sec_chan_offset, radio->oper_param.channelWidth, radio->oper_param.channel, ht_enabled, cf1);
 
     update_hostap_config_params(radio);
 #ifndef BANANA_PI_PORT
