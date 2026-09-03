@@ -2348,6 +2348,9 @@ wifi_interface_info_t *get_interface_by_if_index(unsigned int if_index, int link
                 if (link_id == NL80211_DRV_LINK_ID_NA) {
                     return interface;
                 }
+                if (!wifi_hal_is_mld_enabled(interface)) {
+                    return interface;
+                }
                 if (wifi_hal_get_mld_link_id(interface) == link_id) {
                     return interface;
                 }
