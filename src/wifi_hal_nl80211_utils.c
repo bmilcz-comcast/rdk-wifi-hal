@@ -6260,6 +6260,22 @@ uint16_t freq_to_primary(uint16_t freq, wifi_channelBandwidth_t chwid)
     return freq;
 }
 
+void print_channel_list(int index, wifi_freq_bands_t *band_indexes, int radio_idx, wifi_channels_list_t *channels)
+{
+    char channel_str[512] = {0};
+    char *end_ptr = channel_str;
+    //TODO: Add band strings for bands that were noticed
+    const size_t channel_str_size = sizeof(channel_str);
+
+    while (end_ptr < channel_str + channel_str_size) {
+        end_ptr += snprintf(channel_str, channel_str_size - (end_ptr - channel_str), "%u ", channels->channels_list[index]);
+    }
+
+    wifi_hal_dbg_print("%s:%d: Freq Band: %s for radio: %d num channels: %d channels:\n%s\n",
+        __func__, __LINE__, wifi_freq_bands_to_string(freq_band), radio_idx,
+            channels->num_channels, channel_str);
+}
+
 int reload_interface(wifi_interface_info_t *interface)
 {
     char *interface_name = wifi_hal_get_interface_name(interface);

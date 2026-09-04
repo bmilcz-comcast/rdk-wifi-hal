@@ -2185,9 +2185,11 @@ int process_frame_mgmt(wifi_interface_info_t *interface, struct ieee80211_mgmt *
 
     case WLAN_FC_STYPE_PROBE_REQ:
         mgmt_type = WIFI_MGMT_FRAME_TYPE_PROBE_REQ;
-        wifi_hal_dbg_print("%s:%d: Received probe req frame on interface:%s from the sta : %s and "
-                           "the phy_rate:%d\n",
-            __func__, __LINE__, interface->name, to_mac_str(sta, sta_mac_str), phy_rate);
+        // Uncomment this ONLY for testing purpose.
+        // wifi_hal_dbg_print("%s:%d: Received probe req frame on interface:%s from the sta : %s and
+        // "
+        //                   "the phy_rate:%d\n",
+        //    __func__, __LINE__, interface->name, to_mac_str(sta, sta_mac_str), phy_rate);
 
         if (callbacks->steering_event_callback != 0) {
             handle_probe_req_event_for_bm(interface, mgmt, len, sta, sig_dbm);
@@ -4663,19 +4665,18 @@ static int phy_info_rates(wifi_radio_info_t *radio, struct hostapd_hw_modes *mod
 
     idx = 0;
 
-    //wifi_hal_dbg_print("%s:%d: band: %d mode:%p number of rates: %d Rates: ", __func__, __LINE__,
-    //    band, mode, mode->num_rates);
+    wifi_hal_dbg_print("%s:%d: band: %d mode:%p number of rates: %d Rates: ", __func__, __LINE__,
+        band, mode, mode->num_rates);
     nla_for_each_nested(nl_rate, tb, rem_rate) {
         nla_parse(tb_rate, NL80211_BITRATE_ATTR_MAX, nla_data(nl_rate), nla_len(nl_rate), rate_policy);
         if (!tb_rate[NL80211_BITRATE_ATTR_RATE]) {
             continue;
         }
         mode->rates[idx] = nla_get_u32(tb_rate[NL80211_BITRATE_ATTR_RATE]);
-        //wifi_hal_dbg_print("%d\n", mode->rates[idx]);
+        wifi_hal_dbg_print("%d%c", mode->rates[idx], (idx % 10 == 9) ? '\n' : ' ');
         idx++;
     }
-
-    //wifi_hal_dbg_print("\n");
+    wifi_hal_dbg_print("\n");
 
     return NL_OK;
 }
@@ -4748,7 +4749,6 @@ static struct hostapd_hw_modes *phy_info_freqs(wifi_radio_info_t *radio, struct 
     enum nl80211_dfs_state dfs_state;
     enum nl80211_band band;
     int found = 0;
-    char channel_str[8], channels_str[512] = {};
     int index = -1;
 #ifdef CONFIG_WMM
     static struct nla_policy wmm_policy[NL80211_WMMR_MAX + 1] = {
@@ -4947,13 +4947,8 @@ skip:   found = 0;
         u8 channel = 0;
         ieee80211_freq_to_chan(chan->freq, &channel);
         channels->channels_list[i] = channel;
-        snprintf(channel_str, sizeof(channel_str), "%u ", channels->channels_list[i]);
-        strcat(channels_str, channel_str);
         chan++;
     }
-    wifi_hal_dbg_print("%s:%d: Freq Band: %s for radio: %d num channels: %d channels:\n%s\n",
-        __func__, __LINE__, wifi_freq_bands_to_string(freq_band), radio->index,
-        mode->num_channels, channels_str);
 
     return mode;
 }
@@ -6810,30 +6805,32 @@ static int phy_info_rates_get_hw_features(struct hostapd_hw_modes *mode, struct 
 
 static int phy_info_handler(struct nl_msg *msg, void *arg)
 {
-    wifi_radio_info_t *radio;
-    struct nlattr *tb_msg[NL80211_ATTR_MAX + 1];
+    wifi_radio_info_t *radio = NULL;
+    struct nlattr *tb_msg[NL80211_ATTR_MAX + 1] = {};
     struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
-    struct nlattr *nl_band;
-    int rem_band;
+    struct nlattr *nl_band = NULL;
+    int rem_band = 0;
     enum nl80211_band band = 0;
     enum nl80211_band radio_nl80211_band_type;
-#ifdef FEATURE_SINGLE_PHY
-    int i;
-#endif //FEATURE_SINGLE_PHY
+
+    if (g_wifi_hal.num_radios == 0) {
+        wifi_hal_error_print("%s:%d: no radios available\n", __func__, __LINE__);
+        return NL_OK;
+    }
 
     nla_parse(tb_msg, NL80211_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
         genlmsg_attrlen(gnlh, 0), NULL);
 
-#ifndef FEATURE_SINGLE_PHY
     if (tb_msg[NL80211_ATTR_WIPHY]) {
         radio = get_radio_by_phy_index(nla_get_u32(tb_msg[NL80211_ATTR_WIPHY]));
         if (radio == NULL) {
             return NL_SKIP;
         }
     } else {
+        wifi_hal_error_print("%s:%d: no wiphy index - cannot determine radio for phy info\n",
+            __func__, __LINE__);
         return NL_OK;
     }
-#endif //FEATURE_SINGLE_PHY
 
 #ifdef CMXB7_PORT
     if (tb_msg[NL80211_ATTR_INTERFACE_COMBINATIONS])
@@ -6853,65 +6850,76 @@ static int phy_info_handler(struct nl_msg *msg, void *arg)
         return NL_SKIP;
 
     nla_for_each_nested(nl_band, tb_msg[NL80211_ATTR_WIPHY_BANDS], rem_band) {
-        nla_parse(tb_msg, NL80211_BAND_ATTR_MAX, nla_data(nl_band), nla_len(nl_band), NULL);
-
-        if (tb_msg[NL80211_BAND_ATTR_RATES]) {
 #ifdef FEATURE_SINGLE_PHY
-            // Update the right radio with the bit rates in case of single phy
-            for (i = 0; i < g_wifi_hal.num_radios; i++) {
-                radio = &g_wifi_hal.radio_info[i];
-#else //FEATURE_SINGLE_PHY
-            {
-#endif //FEATURE_SINGLE_PHY
-                radio_nl80211_band_type = get_nl80211_band_from_rdk_radio_index(
-                    radio->rdk_radio_index);
-                wifi_hal_dbg_print("%s:%d: wiphy index:%d name:%s rdk_radio_index:%d\n", __func__,
-                    __LINE__, radio->index, radio->name, radio->rdk_radio_index);
-                wifi_hal_dbg_print("%s:%d:band_type:%d radio_band_type:%d processing:%s\n",
-                    __func__, __LINE__, nl_band->nla_type, radio_nl80211_band_type,
-                    ((nl_band->nla_type == radio_nl80211_band_type) ? "yes" : "no"));
-                if (nl_band->nla_type == radio_nl80211_band_type) {
-                    wifi_hal_dbg_print("%s:%d:phy_info_rates being invoked from phy_info_handler\n",
-                        __func__, __LINE__);
-                    phy_info_ht_capa(&radio->hw_modes[radio_nl80211_band_type],
-                        tb_msg[NL80211_BAND_ATTR_HT_CAPA],
-                        tb_msg[NL80211_BAND_ATTR_HT_AMPDU_FACTOR],
-                        tb_msg[NL80211_BAND_ATTR_HT_AMPDU_DENSITY],
-                        tb_msg[NL80211_BAND_ATTR_HT_MCS_SET]);
-                    phy_info_vht_capa(&radio->hw_modes[radio_nl80211_band_type],
-                        tb_msg[NL80211_BAND_ATTR_VHT_CAPA], tb_msg[NL80211_BAND_ATTR_VHT_MCS_SET]);
-                    phy_info_rates(radio, &radio->hw_modes[radio_nl80211_band_type],
-                        radio_nl80211_band_type, tb_msg[NL80211_BAND_ATTR_RATES]);
-                }
-            }
-        }
-
-        if (tb_msg[NL80211_BAND_ATTR_FREQS] == NULL) {
-            wifi_hal_dbg_print("%s:%d: Frequency attributes not present\n", __func__, __LINE__);
-            return NL_OK;
-        }
-
-#ifndef FEATURE_SINGLE_PHY
-        if (phy_info_freqs(radio, tb_msg[NL80211_BAND_ATTR_FREQS], &band) == NULL) {
-            return NL_OK;
-        }
-#else //FEATURE_SINGLE_PHY
-        for (i = 0; i < g_wifi_hal.num_radios; i++) {
+        for (int i = 0; i < g_wifi_hal.num_radios; i++) {
             radio = &g_wifi_hal.radio_info[i];
             radio_nl80211_band_type = get_nl80211_band_from_rdk_radio_index(radio->rdk_radio_index);
-            wifi_hal_dbg_print("%s:%d: wiphy index:%d name:%s rdk_radio_index:%d\n", __func__,
-                __LINE__, radio->index, radio->name, radio->rdk_radio_index);
-            wifi_hal_dbg_print("%s:%d:band_type:%d radio_band_type:%d processing:%s\n", __func__,
-                __LINE__, nl_band->nla_type, radio_nl80211_band_type,
-                ((nl_band->nla_type == radio_nl80211_band_type) ? "yes" : "no"));
-
             if (nl_band->nla_type == radio_nl80211_band_type) {
-                if (phy_info_freqs(radio, tb_msg[NL80211_BAND_ATTR_FREQS], &band) == NULL) {
-                    return NL_OK;
-                }
+                break;
+            } else if (i == g_wifi_hal.num_radios - 1) {
+                wifi_hal_dbg_print("%s:%d: no radio matches for band type %d\n", __func__, __LINE__,
+                    nl_band->nla_type);
+                return NL_OK;
             }
         }
-#endif //FEATURE_SINGLE_PHY
+#else
+        radio_nl80211_band_type = get_nl80211_band_from_rdk_radio_index(radio->rdk_radio_index);
+#endif
+        wifi_hal_dbg_print("%s:%d:band_type:%d radio_band_type:%d processing:%s\n", __func__,
+            __LINE__, nl_band->nla_type, radio_nl80211_band_type,
+            ((nl_band->nla_type == radio_nl80211_band_type) ? "yes" : "no"));
+
+        nla_parse(tb_msg, NL80211_BAND_ATTR_MAX, nla_data(nl_band), nla_len(nl_band), NULL);
+
+        if (nl_band->nla_type == radio_nl80211_band_type) {
+            if (tb_msg[NL80211_BAND_ATTR_RATES]) {
+                phy_info_ht_capa(&radio->hw_modes[radio_nl80211_band_type],
+                    tb_msg[NL80211_BAND_ATTR_HT_CAPA], tb_msg[NL80211_BAND_ATTR_HT_AMPDU_FACTOR],
+                    tb_msg[NL80211_BAND_ATTR_HT_AMPDU_DENSITY],
+                    tb_msg[NL80211_BAND_ATTR_HT_MCS_SET]);
+                phy_info_vht_capa(&radio->hw_modes[radio_nl80211_band_type],
+                    tb_msg[NL80211_BAND_ATTR_VHT_CAPA], tb_msg[NL80211_BAND_ATTR_VHT_MCS_SET]);
+                phy_info_rates(radio, &radio->hw_modes[radio_nl80211_band_type],
+                    radio_nl80211_band_type, tb_msg[NL80211_BAND_ATTR_RATES]);
+            }
+
+            if (tb_msg[NL80211_BAND_ATTR_FREQS] == NULL) {
+                wifi_hal_dbg_print("%s:%d: Frequency attributes not present\n", __func__, __LINE__);
+                return NL_OK;
+            }
+
+            if (phy_info_freqs(radio, tb_msg[NL80211_BAND_ATTR_FREQS], &band) == NULL) {
+                return NL_OK;
+            }
+        }
+    }
+
+    wifi_hal_dbg_print("%s:%d: PHY info parsed for wiphy index:%d name:%s rdk_radio_index:%d\n",
+        __func__, __LINE__, radio->index, radio->name, radio->rdk_radio_index);
+
+    for (int i = 0; i < g_wifi_hal.num_radios; i++) {
+        radio = get_radio_by_rdk_index(i);
+        if (radio == NULL) {
+            wifi_hal_error_print("%s:%d: Failed to get radio for index: %d\n", __func__, __LINE__, i);
+            return NULL;
+        }
+
+        //TODO:
+        // - move below into channel print function, radio alone is enough to pass this
+        // - update other functions affected by moved prints from phy_info_freqs
+        wifi_radio_capabilities_t *cap = &radio->capab;
+        int index = -1;
+        wifi_freq_bands_t band_indexes[MAX_NUM_FREQ_BAND] = {0};
+        for (int i = 0; i < MAX_NUM_FREQ_BAND; i++)
+        {
+            if (cap->band[i] != 0) {
+                band_indexes[i] = cap->band[i];
+                break;
+            }
+        }
+        
+        wifi_channels_list_t *channels = &cap->channel_list[index];
+        print_channel_list(index, band_indexes, radio->index, channels);
     }
     return NL_SKIP;
 }
