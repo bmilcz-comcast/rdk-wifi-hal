@@ -19588,6 +19588,8 @@ int set_freq_and_interface_enable(wifi_interface_info_t *interface, wifi_radio_i
         return RETURN_ERR;
     }
 #else
+    hostapd_set_state(&interface->u.ap.iface, HAPD_IFACE_ENABLED);
+
     if (start_bss(interface) < 0) {
         wifi_hal_error_print("%s:%d start_bss Failed \n", __func__, __LINE__);
         return RETURN_ERR;
