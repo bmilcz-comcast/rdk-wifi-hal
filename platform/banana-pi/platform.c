@@ -346,6 +346,7 @@ int platform_pre_create_vap(wifi_radio_index_t index, wifi_vap_info_map_t *map)
     for (unsigned int i = 0; i < map->num_vaps; i++) {
         vap = &map->vap_array[i];
         if (vap->vap_mode != wifi_vap_mode_ap) {
+            wifi_hal_dbg_print("%s:%d: BRAYAN 1 \n", __func__, __LINE__);
             continue;
         }
 
@@ -357,7 +358,8 @@ int platform_pre_create_vap(wifi_radio_index_t index, wifi_vap_info_map_t *map)
         }
 
         if (interface->vap_info.vap_mode != wifi_vap_mode_ap) {
-            continue;
+          wifi_hal_dbg_print("%s:%d: BRAYAN 2 \n", __func__, __LINE__);
+          continue;
         }
 
 #if defined(CONFIG_IEEE80211BE) && defined(CONFIG_GENERIC_MLO)
@@ -370,6 +372,10 @@ int platform_pre_create_vap(wifi_radio_index_t index, wifi_vap_info_map_t *map)
         if (has_config_changed(&interface->vap_info, vap) == false ||
             (interface->u.ap.conf.disable_11be == true) ||
             (interface->vap_info.vap_mode != wifi_vap_mode_ap)) {
+            wifi_hal_dbg_print("%s:%d: BRAYAN 3: cfg changed : %s, disable_11be: %s, vap mode ap: %s\n", __func__, __LINE__,
+                              has_config_changed(&interface->vap_info, vap) == true ? "true":"false",
+                              interface->u.ap.conf.disable_11be == true ? "true":"false",
+                              (interface->vap_info.vap_mode == wifi_vap_mode_ap ? "true":"false"));
             continue;
         }
 
