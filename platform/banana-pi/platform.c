@@ -571,6 +571,11 @@ int platform_set_dfs(wifi_radio_index_t index, wifi_radio_operationParam_t *oper
 {
     wifi_radio_info_t *radio;
 
+    if (operationParam == NULL) {
+        wifi_hal_dbg_print("%s:%d operationParam is NULL\n", __func__, __LINE__);
+        return RETURN_ERR;
+    }
+
     radio = get_radio_by_rdk_index(index);
     if (radio == NULL) {
         wifi_hal_dbg_print("%s:%d failed to get radio for index\n", __func__, __LINE__);

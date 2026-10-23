@@ -1985,13 +1985,10 @@ int process_global_nl80211_event(struct nl_msg *msg, void *arg)
 
         // To handle CAC Finish and CAC Abort for DFS. These event involve only the primary
         // interface of the radio.
-        if (event_type == NL80211_RADAR_CAC_FINISHED || event_type == NL80211_RADAR_CAC_ABORTED) {
-            if (interface != NULL) {
-                do_process_drv_event(interface, gnlh->cmd, tb);
-                return NL_SKIP;
-            }
-        }
-        break;
+        if (!(event_type == NL80211_RADAR_CAC_FINISHED || event_type == NL80211_RADAR_CAC_ABORTED))
+            break;
+
+        /* fall through */
     case NL80211_CMD_NEW_SCAN_RESULTS:
     case NL80211_CMD_TRIGGER_SCAN:
     case NL80211_CMD_SCAN_ABORTED:
