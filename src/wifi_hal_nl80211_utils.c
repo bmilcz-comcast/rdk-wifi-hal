@@ -2362,6 +2362,8 @@ void wifi_hal_update_beacons(wifi_interface_info_t *skip_radio_iface)
                 !interface_iter->u.ap.hapd.iface) {
                 continue;
             }
+            wifi_hal_dbg_print("%s:%d: BRAYAN: UPDATING BEACON FOR vap_index:%d\n", __func__, __LINE__,
+                    interface_iter->vap_info.vap_index);
             ieee802_11_update_beacons(interface_iter->u.ap.hapd.iface);
         }
     }
