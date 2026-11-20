@@ -2352,7 +2352,7 @@ void wifi_hal_update_beacons(wifi_interface_info_t *skip_radio_iface)
             continue;
         }
         radio_iter = get_radio_by_rdk_index(radio_index);
-        if (radio_iter == NULL) {
+        if (radio_iter == NULL || radio_iter->oper_param.enable == false) {
             continue;
         }
         hash_map_foreach(radio_iter->interface_map, interface_iter) {
