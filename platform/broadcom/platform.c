@@ -2398,15 +2398,23 @@ static void platform_beacon_update(wifi_radio_index_t r_index, wifi_vap_info_map
                     bool update_beacon = radio->oper_param.band == WIFI_FREQUENCY_6_BAND &&
                         radio_iter->oper_param.band != WIFI_FREQUENCY_6_BAND;
 
+                    wifi_hal_dbg_print("%s:%d: BRAYAN: current update_beacon for vap_index:%d is %d\n", __func__, __LINE__,
+                        map->vap_array[index].vap_index, update_beacon);
+
 #if defined(MLO_ENAB)
                     update_beacon |= (refresh_mld_id != UNDEFINED_MLD_ID) &&
                         interface_iter->vap_info.u.bss_info.mld_info.common_info.mld_enable &&
                         (u8)interface_iter->vap_info.u.bss_info.mld_info.common_info.mld_id == refresh_mld_id;
 #endif /* MLO_ENAB */
+                    wifi_hal_dbg_print("%s:%d: BRAYAN: UPDATED update_beacon for vap_index:%d is %d\n", __func__, __LINE__,
+                        map->vap_array[index].vap_index, update_beacon);
 
                     if (!update_beacon) {
                         continue;
                     }
+
+                    wifi_hal_dbg_print("%s:%d: BRAYAN: UPDATING BEACON FOR vap_index:%d\n", __func__, __LINE__,
+                        map->vap_array[index].vap_index);
 
                     ieee802_11_set_beacon(&interface_iter->u.ap.hapd);
                 }
