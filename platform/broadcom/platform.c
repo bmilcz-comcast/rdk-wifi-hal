@@ -121,6 +121,8 @@ static void platform_set_eht(wifi_radio_index_t index, bool enable);
 #define KERNEL_NVRAM_CHANGED    0x02
 #endif
 
+#define RSSI_NA (-255)
+
 typedef struct wl_runtime_params {
     char *param_name;
     char *param_val;
@@ -3657,6 +3659,8 @@ static int bw_to_str(uint8_t bw, char *buf, size_t buf_size)
 static int get_sta_stats_handler(struct nl_msg *msg, void *arg)
 {
     int i;
+    int rssi = 0;
+    bool is_rssi_data_valid = false;
     struct nlattr *nlattr;
     struct nl80211_sta_flag_update *sta_flags;
     struct nlattr *tb[NL80211_ATTR_MAX + 1];
@@ -3747,19 +3751,23 @@ static int get_sta_stats_handler(struct nl_msg *msg, void *arg)
             sta_flags->set & (1 << NL80211_STA_FLAG_AUTHORIZED);
     }
 
-    if (tb_sta_info[RDK_VENDOR_ATTR_STA_INFO_RX_BITRATE_LAST]) {
+    if (tb_sta_info[RDK_VENDOR_ATTR_STA_INFO_SIGNAL_AVG]) {
+        rssi = nla_get_s32(tb_sta_info[RDK_VENDOR_ATTR_STA_INFO_SIGNAL_AVG]);
+        if (rssi != RSSI_NA) {
+            stats->cli_RSSI = nla_get_s32(tb_sta_info[RDK_VENDOR_ATTR_STA_INFO_SIGNAL_AVG]);
+            stats->cli_SignalStrength = stats->cli_RSSI;
+            data_valid = true;
+        }
+    }
+
+    if (tb_sta_info[RDK_VENDOR_ATTR_STA_INFO_RX_BITRATE_LAST] && is_rssi_data_valid == true) {
         stats->cli_LastDataUplinkRate =
             nla_get_u32(tb_sta_info[RDK_VENDOR_ATTR_STA_INFO_RX_BITRATE_LAST]);
     }
 
-    if (tb_sta_info[RDK_VENDOR_ATTR_STA_INFO_TX_BITRATE_LAST]) {
+    if (tb_sta_info[RDK_VENDOR_ATTR_STA_INFO_TX_BITRATE_LAST] && is_rssi_data_valid == true) {
         stats->cli_LastDataDownlinkRate =
             nla_get_u32(tb_sta_info[RDK_VENDOR_ATTR_STA_INFO_TX_BITRATE_LAST]);
-    }
-
-    if (tb_sta_info[RDK_VENDOR_ATTR_STA_INFO_SIGNAL_AVG]) {
-        stats->cli_RSSI = nla_get_s32(tb_sta_info[RDK_VENDOR_ATTR_STA_INFO_SIGNAL_AVG]);
-        stats->cli_SignalStrength = stats->cli_RSSI;
     }
 
     if (tb_sta_info[RDK_VENDOR_ATTR_STA_INFO_SIGNAL_MIN]) {
@@ -3789,7 +3797,7 @@ static int get_sta_stats_handler(struct nl_msg *msg, void *arg)
             stats->cli_OperatingChannelBandwidth, sizeof(stats->cli_OperatingChannelBandwidth));
     }
 
-    if (tb_sta_info[RDK_VENDOR_ATTR_STA_INFO_SNR]) {
+    if (tb_sta_info[RDK_VENDOR_ATTR_STA_INFO_SNR] && is_rssi_data_valid == true) {
         stats->cli_SNR = nla_get_s32(tb_sta_info[RDK_VENDOR_ATTR_STA_INFO_SNR]);
     }
 
